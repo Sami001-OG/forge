@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "forge-marketplace",
+  "owner": { "name": "Sami" },
+  "metadata": { "description": "Forge: autonomous supervisor-driven build loop for Claude Code" },
+  "plugins": [
+    {
+      "name": "forge",
+      "source": "./",
+      "description": "Autonomous build loop with supervisor, adversarial critic, hard-evidence approval gate, and a large on-demand verification toolset."
+    }
+  ]
+}

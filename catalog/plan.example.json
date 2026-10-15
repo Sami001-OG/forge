@@ -1,0 +1,36 @@
+{
+  "summary": "One-paragraph restatement of what the user wants and the key technical decisions.",
+  "target_type": "web-ui",
+  "environment": "local",
+  "remote": { "kind": "none", "notes": "" },
+  "references": [
+    { "name": "Reference product", "url": "https://example.com", "why": "What it does best that we must match" }
+  ],
+  "bundles": ["core", "web-pro"],
+  "builder_notes": "Stack choice, structure, conventions the builder must follow.",
+  "axes": [
+    { "id": "functionality", "critical": true, "anchor": "10 = ..." },
+    { "id": "correctness", "critical": true, "anchor": "10 = ..." },
+    { "id": "ux_polish", "critical": true, "anchor": "10 = ..." }
+  ],
+  "criteria": [
+    {
+      "id": "c-loads",
+      "text": "Home page loads with no console errors and the hero is visible above the fold on desktop and mobile",
+      "stage": "skeleton",
+      "critical": true,
+      "observe": { "method": "screenshot", "tool": "playwright" }
+    },
+    {
+      "id": "c-flow",
+      "text": "A new user can complete the main flow end to end",
+      "stage": "function",
+      "critical": true,
+      "observe": { "method": "run", "tool": "playwright" }
+    }
+  ],
+  "checks": [
+    { "id": "build", "cmd": "npm run build", "stage": "skeleton", "timeout_s": 600 },
+    { "id": "test", "cmd": "npm test", "stage": "function", "timeout_s": 600 }
+  ]
+}

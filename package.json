@@ -1,0 +1,14 @@
+{
+  "name": "forge-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Forge: autonomous supervisor-driven build loop for Claude Code",
+  "scripts": {
+    "test": "node --test",
+    "build:catalog": "node catalog/build.mjs",
+    "validate": "claude plugin validate ."
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

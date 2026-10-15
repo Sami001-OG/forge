@@ -1,0 +1,322 @@
+#!/usr/bin/env node
+// forge CLI: the only sanctioned writer of loop state. Used by commands, agents, and the gate.
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { projectDir, forgeDir, readJson, writeJsonAtomic, readStdin, clip, toolEnv, toolsDir, posix } from './lib/util.mjs';
+import { loadState, saveState, loadArtifacts, artifactFile, DEFAULT_CAPS } from './lib/state.mjs';
+import { applicableChecks, applicableCriteria, stageBrief, barFor } from './lib/gate-logic.mjs';
+import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
+import { loadCatalog, loadBundles, loadTargets, search, pluginRoot } from './lib/catalog.mjs';
+import * as prov from './lib/provision.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const project = projectDir();
+const [cmd, ...rest] = process.argv.slice(2);
+
+function parseArgs(argv) {
+  const pos = [], flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--') { pos.push(...argv.slice(i + 1)); break; }
+    if (a.startsWith('--')) {
+      const k = a.slice(2);
+      const n = argv[i + 1];
+      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
+    } else pos.push(a);
+  }
+  return { pos, flags };
+}
+const die = (m, code = 1) => { process.stderr.write(m + '\n'); process.exit(code); };
+const out = (m) => process.stdout.write(m + '\n');
+const need = () => { const s = loadState(project); if (!s) die('forge: no active loop in this project. Start one with /forge:build'); return s; };
+
+const bar = (n, w = 10) => '▮'.repeat(Math.max(0, Math.min(w, Math.round(n)))) + '▯'.repeat(w - Math.max(0, Math.min(w, Math.round(n))));
+
+function statusText(s) {
+  const L = [];
+  const elapsed = Math.round((Date.now() - s.created_at) / 60000);
+  L.push(`FORGE ▸ ${s.status}${s.delivering_reason ? ` (${s.delivering_reason})` : ''}`);
+  L.push(`request: ${clip(s.prompt, 120)}`);
+  if (!s.plan) { L.push('no plan yet'); return L.join('\n'); }
+  const st = s.plan.stages[s.stage_idx];
+  L.push(`target: ${s.plan.target_type} · env: ${s.plan.environment}`);
+  L.push(`stage ${s.stage_idx + 1}/${s.plan.stages.length} ${st.id} (bar ${barFor(s.plan, st.id)}) · round ${s.round}/${s.caps.max_rounds} · ${elapsed}/${s.caps.max_minutes}m · loop ${s.blocks || 0}/${s.caps.max_blocks}`);
+  const last = [...(s.history || [])].slice(-1)[0];
+  const art = loadArtifacts(project, s.round);
+  const prev = loadArtifacts(project, Math.max(1, s.round - 1));
+  const v = (art.supervisor && art.critic) ? art : prev;
+  if (v.supervisor && v.critic) {
+    L.push('axes (min of supervisor, critic):');
+    for (const a of s.plan.axes) {
+      const m = Math.min(Number(v.supervisor.axes?.[a.id] ?? 0), Number(v.critic.axes?.[a.id] ?? 0));
+      L.push(`  ${a.id.padEnd(16)} ${bar(m)} ${m}/10${a.critical ? ' *' : ''}`);
+    }
+  }
+  L.push(`this round: checks ${art.checks ? (art.checks.all_pass ? 'PASS' : 'FAIL') : '-'} · supervisor ${art.supervisor?.verdict || '-'} · critic ${art.critic?.verdict || '-'}`);
+  if (last) L.push(`last scored round: ${last.round} stage ${last.stage} score ${last.score} ${last.approved ? 'APPROVED' : 'rejected'}`);
+  return L.join('\n');
+}
+
+async function main() {
+  const { pos, flags } = parseArgs(rest);
+  switch (cmd) {
+    case 'init': {
+      const prompt = pos.join(' ').trim();
+      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N]');
+      const old = loadState(project);
+      if (old && ['running', 'delivering'].includes(old.status) && !flags.force) die('forge: a loop is already active here. /forge:status to inspect, /forge:abort to cancel.');
+      fs.mkdirSync(forgeDir(project), { recursive: true });
+      for (const f of fs.readdirSync(forgeDir(project))) if (/^(checks|verdict|signoff)-/.test(f) || ['state.json', 'DELIVERY.md', 'plan.draft.json'].includes(f)) fs.rmSync(path.join(forgeDir(project), f), { force: true });
+      fs.writeFileSync(path.join(forgeDir(project), '.gitignore'), '*\n');
+      const caps = { ...DEFAULT_CAPS };
+      if (flags['max-rounds']) caps.max_rounds = parseInt(flags['max-rounds'], 10);
+      if (flags['max-minutes']) caps.max_minutes = parseInt(flags['max-minutes'], 10);
+      const s = {
+        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null },
+        created_at: Date.now(), caps, round: 1, stage_idx: 0, blocks: 0, idle_blocks: 0, last_fp: null,
+        history: [], best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null, plan: null,
+      };
+      saveState(project, s);
+      out('forge: initialised .forge/ (status: planning)');
+      break;
+    }
+    case 'plan-set': {
+      const s = need();
+      if (s.status !== 'planning') die(`forge: plan can only be set while planning (status: ${s.status})`);
+      const file = pos[0] || path.join(forgeDir(project), 'plan.draft.json');
+      const raw = readJson(file, null);
+      if (!raw) die(`forge: cannot read JSON plan at ${file}`);
+      const plan = normalizePlan(raw, { bar: s.opts?.bar });
+      const errs = validatePlan(plan, project);
+      if (errs.length) die('forge: plan INVALID:\n' + errs.map((e) => `  - ${e}`).join('\n'));
+      s.plan = plan;
+      saveState(project, s);
+      writeRubric(project, s);
+      out(`forge: plan accepted. ${plan.stages.length} stages, ${plan.axes.length} axes, ${plan.criteria.length} criteria, ${plan.checks.length} checks. Rubric: .forge/rubric.md`);
+      break;
+    }
+    case 'start': {
+      const s = need();
+      if (s.status !== 'planning' || !s.plan) die('forge: start requires a plan in planning status');
+      s.status = 'running'; s.created_at = Date.now(); s.round = 1; s.stage_idx = 0; s.blocks = 0; s.idle_blocks = 0; s.last_fp = null;
+      saveState(project, s);
+      out(`forge: loop started.\n\nOriginal request:\n${s.prompt}\n\nBuilder notes:\n${s.plan.builder_notes || '(none)'}\n\n${stageBrief(s)}\n\nHard checks (run automatically later): ${s.plan.checks.map((c) => c.id).join(', ')}\nBuild stage 1 now. When you think it is done, just end your turn; the gate takes over.`);
+      break;
+    }
+    case 'checks': {
+      const s = need();
+      if (s.status !== 'running') die(`forge: checks only run while the loop is running (status: ${s.status})`);
+      const list = applicableChecks(s.plan, s.stage_idx);
+      const results = [];
+      for (const c of list) {
+        const t0 = Date.now();
+        const r = spawnSync(c.cmd, { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
+        const ok = r.status === 0;
+        results.push({ id: c.id, cmd: c.cmd, ok, code: r.status ?? (r.error ? -1 : 1), ms: Date.now() - t0, tail: clip(`${r.stdout || ''}${r.stderr || ''}${r.error ? '\n' + r.error.message : ''}`.slice(-2000), 2000) });
+        out(`${ok ? 'PASS' : 'FAIL'} ${c.id} (${Date.now() - t0}ms)`);
+        if (!ok) out(clip(`${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
+      }
+      const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
+      writeJsonAtomic(artifactFile(project, 'checks', s.round), res);
+      out(`forge: checks ${res.all_pass ? 'ALL PASS' : 'FAILING'} (round ${s.round}). Recorded.`);
+      break;
+    }
+    case 'verdict': {
+      const s = need();
+      const role = pos[0];
+      if (!['supervisor', 'critic'].includes(role)) die('usage: forge verdict <supervisor|critic>  (JSON on stdin)');
+      if (s.status !== 'running') die(`forge: no verdicts accepted (status: ${s.status})`);
+      let v;
+      try { v = JSON.parse(await readStdin()); } catch (e) { die('forge: stdin is not valid JSON: ' + e.message); }
+      const errs = validateVerdict(s, role, v);
+      if (errs.length) die('forge: verdict INVALID:\n' + errs.map((e) => `  - ${e}`).join('\n'));
+      v.role = role; v.round = s.round; v.written_at = new Date().toISOString();
+      writeJsonAtomic(artifactFile(project, 'verdict', s.round, role), v);
+      out(`forge: ${role} verdict recorded for round ${s.round}: ${v.verdict}`);
+      break;
+    }
+    case 'signoff': {
+      const s = need();
+      const kind = pos[0];
+      if (!['complete', 'incomplete'].includes(kind)) die('usage: forge signoff <complete|incomplete> "<notes>"');
+      if (s.status !== 'running') die('forge: loop not running');
+      writeJsonAtomic(artifactFile(project, 'signoff', s.round), { round: s.round, complete: kind === 'complete', notes: pos.slice(1).join(' '), at: new Date().toISOString() });
+      out(`forge: sign-off recorded (${kind})`);
+      break;
+    }
+    case 'status': {
+      const s = need();
+      out(flags.json ? JSON.stringify(s, null, 2) : statusText(s));
+      if (flags.json) {
+        const art = loadArtifacts(project, s.round);
+        out('\n// current round artifacts\n' + JSON.stringify(art, null, 2));
+      }
+      break;
+    }
+    case 'abort': {
+      const s = need();
+      s.status = 'aborted';
+      saveState(project, s);
+      out('forge: loop aborted. State kept in .forge/. The Stop hook is now inactive.');
+      break;
+    }
+    case 'doctor': await doctor(); break;
+    case 'tool': await toolCmd(pos, flags); break;
+    case 'shot': {
+      const r = spawnSync(process.execPath, [path.join(here, 'shot.mjs'), ...rest], { stdio: 'inherit', env: toolEnv(project) });
+      process.exit(r.status ?? 1);
+      break;
+    }
+    case 'http': await httpCmd(pos, flags); break;
+    default:
+      out('forge CLI: init | plan-set | start | checks | verdict | signoff | status | abort | doctor | tool | shot | http');
+  }
+}
+
+function validateVerdict(s, role, v) {
+  const errs = [];
+  const plan = s.plan;
+  if (!v || typeof v !== 'object') return ['verdict must be a JSON object'];
+  const okVerdicts = role === 'supervisor' ? ['approve', 'continue'] : ['approve', 'reject'];
+  if (!okVerdicts.includes(v.verdict)) errs.push(`verdict must be one of ${okVerdicts.join('|')}`);
+  if (!v.axes || typeof v.axes !== 'object') errs.push('axes object required');
+  else for (const a of plan.axes) { const n = v.axes[a.id]; if (typeof n !== 'number' || n < 0 || n > 10) errs.push(`axes.${a.id} must be a number 0-10`); }
+  if (role === 'supervisor') {
+    if (!Array.isArray(v.criteria)) errs.push('criteria array required');
+    else {
+      const checks = readJson(artifactFile(project, 'checks', s.round), { results: [] });
+      const cids = new Set(plan.criteria.map((c) => c.id));
+      const ckids = new Set((checks.results || []).map((r) => r.id));
+      for (const c of v.criteria) {
+        if (!cids.has(c.id)) { errs.push(`unknown criterion ${c.id}`); continue; }
+        if (typeof c.pass !== 'boolean' || typeof c.observed !== 'boolean') errs.push(`criterion ${c.id}: pass and observed must be boolean`);
+        if (c.observed) {
+          const ev = Array.isArray(c.evidence) ? c.evidence : [];
+          let hard = 0;
+          for (const e of ev) {
+            if (e.startsWith('file:')) { if (fs.existsSync(path.resolve(project, e.slice(5)))) hard++; else errs.push(`criterion ${c.id}: evidence file does not exist: ${e.slice(5)}`); }
+            else if (e.startsWith('check:')) { if (ckids.has(e.slice(6))) hard++; else errs.push(`criterion ${c.id}: no such check result: ${e.slice(6)}`); }
+            else if (!e.startsWith('run:')) errs.push(`criterion ${c.id}: evidence must start with file:, check:, or run:`);
+          }
+          if (!hard) errs.push(`criterion ${c.id}: observed=true needs at least one file:<path> or check:<id> evidence that exists`);
+        }
+      }
+    }
+    if (!Array.isArray(v.issues)) errs.push('issues array required (may be empty)');
+    if (v.verdict === 'continue' && !(typeof v.next_prompt === 'string' && v.next_prompt.length > 10)) errs.push('next_prompt required when verdict is continue');
+    if (v.needs_tool && !Array.isArray(v.needs_tool)) errs.push('needs_tool must be an array of {what, why}');
+  } else {
+    if (!Array.isArray(v.blocking_issues)) errs.push('blocking_issues array required');
+    if (v.verdict === 'reject' && !(v.blocking_issues || []).length) errs.push('reject requires at least one blocking issue');
+    if (!Array.isArray(v.probes) || (v.verdict === 'approve' && v.probes.length < 3)) errs.push('probes: list the adversarial tests you actually ran (at least 3 to approve)');
+  }
+  return errs;
+}
+
+async function doctor() {
+  const L = [];
+  let bad = false;
+  const major = parseInt(process.versions.node.split('.')[0], 10);
+  L.push(`${major >= 18 ? 'ok  ' : 'FAIL'} node ${process.versions.node} (need >= 18)`);
+  if (major < 18) bad = true;
+  const sh = (c) => spawnSync(c, { shell: true, encoding: 'utf8', timeout: 10000 });
+  const git = sh('git --version');
+  L.push(`${git.status === 0 ? 'ok  ' : 'FAIL'} git ${git.status === 0 ? git.stdout.trim() : 'not found (required)'}`);
+  if (git.status !== 0) bad = true;
+  for (const [n, c] of [['python3', 'python3 --version'], ['docker', 'docker --version'], ['npm', 'npm --version']]) {
+    const r = sh(c);
+    L.push(`${r.status === 0 ? 'ok  ' : 'warn'} ${n}${r.status === 0 ? ' ' + (r.stdout || r.stderr).trim() : ' not found (optional; some tools need it)'}`);
+  }
+  L.push(`info container: ${prov.inContainer() ? 'yes (tier-1 tools auto-install)' : 'no (tier-1 tools need approval)'}`);
+  try { fs.mkdirSync(forgeDir(project), { recursive: true }); fs.accessSync(forgeDir(project), fs.constants.W_OK); L.push('ok   .forge/ writable'); } catch { L.push('FAIL .forge/ not writable'); bad = true; }
+  const tools = loadCatalog(project);
+  L.push(`ok   catalog: ${tools.length} tools, ${Object.keys(loadBundles()).length} bundles`);
+  const t = readJson(path.join(forgeDir(project), 'tools.json'), { installed: {} });
+  const ids = Object.keys(t.installed);
+  if (ids.length) {
+    for (const id of ids) { const tool = tools.find((x) => x.id === id); const v = tool ? prov.verify(project, tool) : { ok: false }; L.push(`${v.ok ? 'ok  ' : 'warn'} installed ${id} ${t.installed[id].version || ''}${v.ok ? '' : ' (verification failing; reinstall with: forge tool install ' + id + ')'}`); }
+  } else L.push('info no project-local tools installed yet');
+  out(L.join('\n'));
+  process.exit(bad ? 1 : 0);
+}
+
+async function toolCmd(pos, flags) {
+  const [sub, ...a] = pos;
+  const tools = loadCatalog(project);
+  const brief = (t) => `${t.id.padEnd(22)} t${t.tier} ${t.install.method.padEnd(7)} ${t.summary}`;
+  if (sub === 'list') {
+    let list = tools;
+    if (flags.bundle) { const ids = new Set(loadBundles()[flags.bundle] || []); list = list.filter((t) => ids.has(t.id)); }
+    if (flags.search) list = search(list, flags.search);
+    if (flags.installed) { const inst = readJson(path.join(forgeDir(project), 'tools.json'), { installed: {} }).installed; list = list.filter((t) => inst[t.id]); }
+    out(list.map(brief).join('\n') + `\n(${list.length} tools; tier 0 auto, 1 container-or-approval, 2 approval, 3 credentials)`);
+  } else if (sub === 'info') {
+    const t = tools.find((x) => x.id === a[0]);
+    if (!t) die(`unknown tool ${a[0]}`);
+    out(JSON.stringify(t, null, 2) + '\n' + prov.describeInstall(t));
+  } else if (sub === 'plan') {
+    const s = need();
+    const want = new Set();
+    for (const c of s.plan?.criteria || []) if (c.observe?.tool && !['manual', 'builtin'].includes(c.observe.tool)) want.add(c.observe.tool);
+    const ids = new Set(tools.map((t) => t.id));
+    const bundles = loadBundles();
+    for (const b of s.plan?.bundles || []) for (const id of bundles[b] || []) { const t = tools.find((x) => x.id === id); if (t && t.tier === 0 && t.install.method !== 'builtin' && (b !== 'core')) { /* bundle members are available on demand, not forced */ } }
+    const rows = [...want].filter((id) => ids.has(id)).map((id) => { const t = tools.find((x) => x.id === id); const ok = prov.verify(project, t).ok; return `${ok ? 'have' : 'NEED'} ${brief(t)}`; });
+    out(rows.length ? rows.join('\n') : 'no tools required by the plan beyond what is installed');
+  } else if (sub === 'install') {
+    const targets = [];
+    for (const x of a) {
+      if (x.startsWith('bundle:')) { for (const id of loadBundles()[x.slice(7)] || []) targets.push(id); }
+      else if (x === 'plan') { const s = need(); for (const c of s.plan.criteria) if (c.observe?.tool && !['manual', 'builtin'].includes(c.observe.tool)) targets.push(c.observe.tool); }
+      else targets.push(x);
+    }
+    let failed = 0;
+    for (const id of [...new Set(targets)]) {
+      const r = await prov.install(project, id);
+      if (r.ok) out(`ok    ${id}${r.already ? ' (already available)' : ''}`);
+      else { failed++; out(`${r.needs_approval ? 'NEEDS_APPROVAL' : 'FAIL'} ${id}: ${r.reason}`); }
+    }
+    process.exit(failed ? 1 : 0);
+  } else if (sub === 'approve') {
+    for (const id of a) { if (!tools.find((t) => t.id === id)) die(`unknown tool ${id}`); prov.approve(project, id); out(`approved ${id} (user decision recorded)`); }
+  } else if (sub === 'run') {
+    const r = await prov.runTool(project, a[0], a.slice(1));
+    if (r.err) die('forge: ' + r.err, r.code);
+    process.exit(r.code);
+  } else if (sub === 'add') {
+    const f = readJson(a[0], null);
+    if (!f?.id || !f.install?.method) die('usage: forge tool add <file.json> with {id, summary, install:{method,...}, verify}');
+    const cf = path.join(forgeDir(project), 'custom-tools.json');
+    const cur = readJson(cf, { tools: [] });
+    cur.tools = cur.tools.filter((t) => t.id !== f.id).concat([{ tier: 2, domains: [], bundles: [], observes: [], controls: [], ...f }]);
+    writeJsonAtomic(cf, cur);
+    out(`custom tool ${f.id} registered at tier >= 2 (needs user approval before install)`);
+  } else if (sub === 'doctor') {
+    await doctor();
+  } else out('forge tool: list [--bundle b] [--search q] [--installed] | info <id> | plan | install <id|bundle:name|plan>... | approve <id> | run <id> -- args | add <file> | doctor');
+}
+
+async function httpCmd(pos, flags) {
+  const url = pos[0];
+  if (!url) die('usage: forge http <url> [--method GET] [--data <json>] [--header "K: V"]');
+  const s = loadState(project);
+  const t0 = Date.now();
+  let res, body = '', err = null;
+  try {
+    res = await fetch(url, { method: flags.method || 'GET', body: flags.data, headers: flags.header ? Object.fromEntries([String(flags.header).split(/:\s*/, 2)]) : undefined, signal: AbortSignal.timeout(30000), redirect: 'follow' });
+    body = await res.text();
+  } catch (e) { err = String(e.cause?.code || e.message || e); }
+  const ms = Date.now() - t0;
+  const rep = { url, method: flags.method || 'GET', ok: !!res?.ok, status: res?.status ?? null, ms, error: err, headers: res ? Object.fromEntries([...res.headers].filter(([k]) => /^(content-type|content-length|server|cache-control|strict-transport-security|content-security-policy|x-frame-options|location)$/i.test(k))) : {}, body_head: clip(body, 1500) };
+  const dir = path.join(forgeDir(project), 'evidence');
+  fs.mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, `r${s?.round ?? 0}-http-${Date.now()}.json`);
+  fs.writeFileSync(f, JSON.stringify(rep, null, 2));
+  out(JSON.stringify({ status: rep.status, ms, error: err, content_type: rep.headers['content-type'] }, null, 0));
+  out(`evidence: file:${posix(path.relative(project, f))}`);
+  process.exit(rep.ok ? 0 : 1);
+}
+
+main().catch((e) => die('forge: ' + (e.stack || e)));

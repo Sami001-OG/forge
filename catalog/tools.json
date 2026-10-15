@@ -1,0 +1,3331 @@
+{
+ "version": 1,
+ "tools": [
+  {
+   "tier": 0,
+   "domains": [
+    "core"
+   ],
+   "bundles": [
+    "core"
+   ],
+   "observes": [],
+   "controls": [
+    "history",
+    "rollback"
+   ],
+   "id": "git",
+   "summary": "Version control; every round is committed.",
+   "install": {
+    "method": "builtin",
+    "bin": "git"
+   },
+   "verify": "git --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "core"
+   ],
+   "bundles": [
+    "core"
+   ],
+   "observes": [],
+   "controls": [],
+   "id": "node",
+   "summary": "Node.js runtime (forge itself needs it).",
+   "install": {
+    "method": "builtin",
+    "bin": "node"
+   },
+   "verify": "node --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "core",
+    "api"
+   ],
+   "bundles": [
+    "core",
+    "api-pro"
+   ],
+   "observes": [
+    "http-response"
+   ],
+   "controls": [
+    "http"
+   ],
+   "id": "curl",
+   "summary": "HTTP requests from the shell.",
+   "install": {
+    "method": "builtin",
+    "bin": "curl"
+   },
+   "verify": "curl --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web"
+   ],
+   "bundles": [
+    "web-pro",
+    "game-pro",
+    "docs-pro"
+   ],
+   "observes": [
+    "screenshot",
+    "console",
+    "network",
+    "dom"
+   ],
+   "controls": [
+    "click",
+    "type",
+    "navigate"
+   ],
+   "id": "playwright",
+   "summary": "Headless browser: screenshots, console/network logs, full UI control.",
+   "install": {
+    "method": "npm",
+    "pkg": "playwright",
+    "bin": "playwright",
+    "post": [
+     "playwright install chromium"
+    ]
+   },
+   "verify": "playwright --version",
+   "notes": "If the browser fails to launch on Linux: playwright install-deps (needs sudo)."
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "test"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "test-results",
+    "coverage"
+   ],
+   "controls": [],
+   "id": "vitest",
+   "summary": "Unit/integration test runner for JS/TS.",
+   "install": {
+    "method": "npm",
+    "pkg": "vitest",
+    "bin": "vitest",
+    "post": []
+   },
+   "verify": "vitest --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "test"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "test-results"
+   ],
+   "controls": [],
+   "id": "jest",
+   "summary": "JS test runner.",
+   "install": {
+    "method": "npm",
+    "pkg": "jest",
+    "bin": "jest",
+    "post": []
+   },
+   "verify": "jest --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "lint"
+   ],
+   "controls": [],
+   "id": "eslint",
+   "summary": "JS/TS linter.",
+   "install": {
+    "method": "npm",
+    "pkg": "eslint",
+    "bin": "eslint",
+    "post": []
+   },
+   "verify": "eslint --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "format"
+   ],
+   "id": "prettier",
+   "summary": "Code formatter.",
+   "install": {
+    "method": "npm",
+    "pkg": "prettier",
+    "bin": "prettier",
+    "post": []
+   },
+   "verify": "prettier --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "quality"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "lint"
+   ],
+   "controls": [],
+   "id": "stylelint",
+   "summary": "CSS linter.",
+   "install": {
+    "method": "npm",
+    "pkg": "stylelint",
+    "bin": "stylelint",
+    "post": []
+   },
+   "verify": "stylelint --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "types"
+   ],
+   "controls": [],
+   "id": "typescript",
+   "summary": "TypeScript compiler and type checker.",
+   "install": {
+    "method": "npm",
+    "pkg": "typescript",
+    "bin": "tsc",
+    "post": []
+   },
+   "verify": "tsc --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "perf"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "perf-score",
+    "a11y-score",
+    "seo-score"
+   ],
+   "controls": [],
+   "id": "lighthouse",
+   "summary": "Performance, a11y, SEO, best-practice audits (needs a Chrome; playwright chromium works via CHROME_PATH).",
+   "install": {
+    "method": "npm",
+    "pkg": "lighthouse",
+    "bin": "lighthouse",
+    "post": []
+   },
+   "verify": "lighthouse --version",
+   "requires": [
+    "playwright"
+   ]
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "a11y"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "a11y-violations"
+   ],
+   "controls": [],
+   "id": "axe",
+   "summary": "Accessibility violations scan (WCAG).",
+   "install": {
+    "method": "npm",
+    "pkg": "@axe-core/cli",
+    "bin": "axe",
+    "post": []
+   },
+   "verify": "axe --version",
+   "requires": [
+    "playwright"
+   ]
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "web",
+    "a11y"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "a11y-violations"
+   ],
+   "controls": [],
+   "id": "pa11y",
+   "summary": "Accessibility testing runner.",
+   "install": {
+    "method": "npm",
+    "pkg": "pa11y",
+    "bin": "pa11y",
+    "post": []
+   },
+   "verify": "pa11y --version",
+   "notes": "Downloads its own Chromium."
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "visual"
+   ],
+   "bundles": [
+    "web-pro",
+    "game-pro"
+   ],
+   "observes": [
+    "visual-diff"
+   ],
+   "controls": [],
+   "id": "pixelmatch",
+   "summary": "Pixel-diff two screenshots (visual regression).",
+   "install": {
+    "method": "npm",
+    "pkg": "pixelmatch",
+    "bin": null,
+    "post": []
+   },
+   "verify": "node -e \"require.resolve('pixelmatch')\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "perf"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "bundle-size"
+   ],
+   "controls": [],
+   "id": "size-limit",
+   "summary": "Enforce JS bundle size budgets.",
+   "install": {
+    "method": "npm",
+    "pkg": "size-limit",
+    "bin": "size-limit",
+    "post": []
+   },
+   "verify": "size-limit --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "perf"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "bundle-composition"
+   ],
+   "controls": [],
+   "id": "source-map-explorer",
+   "summary": "Treemap of what is inside a JS bundle.",
+   "install": {
+    "method": "npm",
+    "pkg": "source-map-explorer",
+    "bin": "source-map-explorer",
+    "post": []
+   },
+   "verify": "source-map-explorer --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
+    "perf"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "bundle-composition"
+   ],
+   "controls": [],
+   "id": "webpack-bundle-analyzer",
+   "summary": "Interactive bundle size analysis.",
+   "install": {
+    "method": "npm",
+    "pkg": "webpack-bundle-analyzer",
+    "bin": "webpack-bundle-analyzer",
+    "post": []
+   },
+   "verify": "webpack-bundle-analyzer --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "dead-code"
+   ],
+   "controls": [],
+   "id": "knip",
+   "summary": "Find unused files, exports, and dependencies.",
+   "install": {
+    "method": "npm",
+    "pkg": "knip",
+    "bin": "knip",
+    "post": []
+   },
+   "verify": "knip --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "dependency-graph"
+   ],
+   "controls": [],
+   "id": "dependency-cruiser",
+   "summary": "Dependency graph rules and cycle detection.",
+   "install": {
+    "method": "npm",
+    "pkg": "dependency-cruiser",
+    "bin": "depcruise",
+    "post": []
+   },
+   "verify": "depcruise --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "cycles"
+   ],
+   "controls": [],
+   "id": "madge",
+   "summary": "Circular dependency finder.",
+   "install": {
+    "method": "npm",
+    "pkg": "madge",
+    "bin": "madge",
+    "post": []
+   },
+   "verify": "madge --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "duplication"
+   ],
+   "controls": [],
+   "id": "jscpd",
+   "summary": "Copy-paste (duplication) detector.",
+   "install": {
+    "method": "npm",
+    "pkg": "jscpd",
+    "bin": "jscpd",
+    "post": []
+   },
+   "verify": "jscpd --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test",
+    "quality"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "mutation-score"
+   ],
+   "controls": [],
+   "id": "stryker",
+   "summary": "Mutation testing: do the tests actually catch bugs?",
+   "install": {
+    "method": "npm",
+    "pkg": "@stryker-mutator/core",
+    "bin": "stryker",
+    "post": []
+   },
+   "verify": "stryker --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test"
+   ],
+   "bundles": [
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "property-tests"
+   ],
+   "controls": [],
+   "id": "fast-check",
+   "summary": "Property-based testing for JS/TS.",
+   "install": {
+    "method": "npm",
+    "pkg": "fast-check",
+    "bin": null,
+    "post": []
+   },
+   "verify": "node -e \"require.resolve('fast-check')\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "design"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "design-tokens"
+   ],
+   "id": "style-dictionary",
+   "summary": "Design tokens to platform outputs.",
+   "install": {
+    "method": "npm",
+    "pkg": "style-dictionary",
+    "bin": "style-dictionary",
+    "post": []
+   },
+   "verify": "style-dictionary --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "i18n"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [
+    "i18n-coverage"
+   ],
+   "controls": [],
+   "id": "i18next-parser",
+   "summary": "Extract i18n keys; find missing translations.",
+   "install": {
+    "method": "npm",
+    "pkg": "i18next-parser",
+    "bin": "i18next",
+    "post": []
+   },
+   "verify": "i18next --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "assets"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "svg-optimize"
+   ],
+   "id": "svgo",
+   "summary": "SVG optimizer.",
+   "install": {
+    "method": "npm",
+    "pkg": "svgo",
+    "bin": "svgo",
+    "post": []
+   },
+   "verify": "svgo --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "assets",
+    "media"
+   ],
+   "bundles": [
+    "web-pro",
+    "media-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "image-process"
+   ],
+   "id": "sharp",
+   "summary": "Fast image resize/convert/optimize.",
+   "install": {
+    "method": "npm",
+    "pkg": "sharp-cli",
+    "bin": "sharp",
+    "post": []
+   },
+   "verify": "sharp --version"
+  },
+  {
+   "tier": 3,
+   "domains": [
+    "deploy"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "deploy"
+   ],
+   "id": "wrangler",
+   "summary": "Cloudflare Workers/Pages deploy.",
+   "install": {
+    "method": "npm",
+    "pkg": "wrangler",
+    "bin": "wrangler",
+    "post": []
+   },
+   "verify": "wrangler --version",
+   "requires_env": [
+    "CLOUDFLARE_API_TOKEN"
+   ]
+  },
+  {
+   "tier": 3,
+   "domains": [
+    "deploy"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "deploy"
+   ],
+   "id": "vercel",
+   "summary": "Vercel deploy.",
+   "install": {
+    "method": "npm",
+    "pkg": "vercel",
+    "bin": "vercel",
+    "post": []
+   },
+   "verify": "vercel --version",
+   "requires_env": [
+    "VERCEL_TOKEN"
+   ]
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "http-response"
+   ],
+   "controls": [
+    "http"
+   ],
+   "id": "httpie",
+   "summary": "Human-friendly HTTP client.",
+   "install": {
+    "method": "pip",
+    "pkg": "httpie",
+    "bin": "http"
+   },
+   "verify": "http --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "test"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "api-test-results"
+   ],
+   "controls": [],
+   "id": "newman",
+   "summary": "Run Postman collections.",
+   "install": {
+    "method": "npm",
+    "pkg": "newman",
+    "bin": "newman",
+    "post": []
+   },
+   "verify": "newman --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "test"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "api-conformance",
+    "api-fuzz"
+   ],
+   "controls": [],
+   "id": "schemathesis",
+   "summary": "Property-based API testing from OpenAPI/GraphQL schemas.",
+   "install": {
+    "method": "pip",
+    "pkg": "schemathesis",
+    "bin": "schemathesis"
+   },
+   "verify": "schemathesis --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "quality"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "openapi-lint"
+   ],
+   "controls": [],
+   "id": "spectral",
+   "summary": "Lint OpenAPI/AsyncAPI documents.",
+   "install": {
+    "method": "npm",
+    "pkg": "@stoplight/spectral-cli",
+    "bin": "spectral",
+    "post": []
+   },
+   "verify": "spectral --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "docs"
+   ],
+   "bundles": [
+    "api-pro",
+    "docs-pro"
+   ],
+   "observes": [
+    "openapi-lint"
+   ],
+   "controls": [
+    "api-docs"
+   ],
+   "id": "redocly",
+   "summary": "OpenAPI lint, bundle, and docs.",
+   "install": {
+    "method": "npm",
+    "pkg": "@redocly/cli",
+    "bin": "redocly",
+    "post": []
+   },
+   "verify": "redocly --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "perf"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "latency",
+    "throughput"
+   ],
+   "controls": [
+    "load"
+   ],
+   "id": "autocannon",
+   "summary": "HTTP load generator.",
+   "install": {
+    "method": "npm",
+    "pkg": "autocannon",
+    "bin": "autocannon",
+    "post": []
+   },
+   "verify": "autocannon --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "perf"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "latency",
+    "throughput"
+   ],
+   "controls": [
+    "load"
+   ],
+   "id": "locust",
+   "summary": "Scriptable load testing.",
+   "install": {
+    "method": "pip",
+    "pkg": "locust",
+    "bin": "locust"
+   },
+   "verify": "locust --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "api",
+    "security"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "traffic"
+   ],
+   "controls": [],
+   "id": "mitmproxy",
+   "summary": "Intercept and inspect HTTP(S) traffic.",
+   "install": {
+    "method": "pip",
+    "pkg": "mitmproxy",
+    "bin": "mitmdump"
+   },
+   "verify": "mitmdump --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "api",
+    "perf"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "latency",
+    "throughput"
+   ],
+   "controls": [
+    "load"
+   ],
+   "id": "k6",
+   "summary": "Modern load testing with thresholds.",
+   "install": {
+    "method": "system",
+    "bin": "k6",
+    "cmds": {
+     "darwin": "brew install k6",
+     "linux": "brew install k6"
+    },
+    "manual": "https://grafana.com/docs/k6/latest/set-up/install-k6/"
+   },
+   "verify": "k6 --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "api"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "grpc-response"
+   ],
+   "controls": [
+    "grpc"
+   ],
+   "id": "grpcurl",
+   "summary": "curl for gRPC.",
+   "install": {
+    "method": "system",
+    "bin": "grpcurl",
+    "cmds": {
+     "darwin": "brew install grpcurl",
+     "linux": "brew install grpcurl"
+    }
+   },
+   "verify": "grpcurl --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "db"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro"
+   ],
+   "observes": [
+    "db-state"
+   ],
+   "controls": [
+    "sql"
+   ],
+   "id": "psql",
+   "summary": "PostgreSQL client.",
+   "install": {
+    "method": "system",
+    "bin": "psql",
+    "cmds": {
+     "linux": "sudo apt-get install -y postgresql-client",
+     "darwin": "brew install libpq"
+    }
+   },
+   "verify": "psql --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "db"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro"
+   ],
+   "observes": [
+    "db-state"
+   ],
+   "controls": [
+    "sql"
+   ],
+   "id": "sqlite3",
+   "summary": "SQLite CLI.",
+   "install": {
+    "method": "system",
+    "bin": "sqlite3",
+    "cmds": {
+     "linux": "sudo apt-get install -y sqlite3",
+     "darwin": "brew install sqlite"
+    }
+   },
+   "verify": "sqlite3 --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "db"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "cache-state"
+   ],
+   "controls": [
+    "redis"
+   ],
+   "id": "redis-cli",
+   "summary": "Redis client.",
+   "install": {
+    "method": "system",
+    "bin": "redis-cli",
+    "cmds": {
+     "linux": "sudo apt-get install -y redis-tools",
+     "darwin": "brew install redis"
+    }
+   },
+   "verify": "redis-cli --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "db",
+    "quality"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro"
+   ],
+   "observes": [
+    "sql-lint"
+   ],
+   "controls": [],
+   "id": "sqlfluff",
+   "summary": "SQL linter/formatter.",
+   "install": {
+    "method": "pip",
+    "pkg": "sqlfluff",
+    "bin": "sqlfluff"
+   },
+   "verify": "sqlfluff --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "db",
+    "data"
+   ],
+   "bundles": [
+    "data-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "data-queries"
+   ],
+   "controls": [],
+   "id": "duckdb",
+   "summary": "In-process analytical SQL; query CSV/Parquet.",
+   "install": {
+    "method": "pip",
+    "pkg": "duckdb",
+    "bin": null
+   },
+   "verify": "python -c \"import duckdb\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro",
+    "web-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "sast-findings"
+   ],
+   "controls": [],
+   "id": "semgrep",
+   "summary": "Static analysis for security and bug patterns.",
+   "install": {
+    "method": "pip",
+    "pkg": "semgrep",
+    "bin": "semgrep"
+   },
+   "verify": "semgrep --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "sast-findings"
+   ],
+   "controls": [],
+   "id": "bandit",
+   "summary": "Python security linter.",
+   "install": {
+    "method": "pip",
+    "pkg": "bandit",
+    "bin": "bandit"
+   },
+   "verify": "bandit --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro",
+    "api-pro",
+    "data-pro"
+   ],
+   "observes": [
+    "dep-vulns"
+   ],
+   "controls": [],
+   "id": "pip-audit",
+   "summary": "Audit Python dependencies for known vulnerabilities.",
+   "install": {
+    "method": "pip",
+    "pkg": "pip-audit",
+    "bin": "pip-audit"
+   },
+   "verify": "pip-audit --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "security",
+    "devops"
+   ],
+   "bundles": [
+    "security-pro",
+    "devops-pro"
+   ],
+   "observes": [
+    "iac-findings"
+   ],
+   "controls": [],
+   "id": "checkov",
+   "summary": "IaC and Dockerfile misconfiguration scanner.",
+   "install": {
+    "method": "pip",
+    "pkg": "checkov",
+    "bin": "checkov"
+   },
+   "verify": "checkov --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "secrets"
+   ],
+   "controls": [],
+   "id": "gitleaks",
+   "summary": "Find committed secrets.",
+   "install": {
+    "method": "system",
+    "bin": "gitleaks",
+    "cmds": {
+     "darwin": "brew install gitleaks",
+     "linux": "brew install gitleaks"
+    },
+    "manual": "https://github.com/gitleaks/gitleaks#installing"
+   },
+   "verify": "gitleaks --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "secrets"
+   ],
+   "controls": [],
+   "id": "trufflehog",
+   "summary": "Find and verify leaked credentials.",
+   "install": {
+    "method": "system",
+    "bin": "trufflehog",
+    "cmds": {
+     "darwin": "brew install trufflehog",
+     "linux": "brew install trufflehog"
+    },
+    "manual": "https://github.com/trufflesecurity/trufflehog#floppy_disk-installation"
+   },
+   "verify": "trufflehog --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "dep-vulns"
+   ],
+   "controls": [],
+   "id": "osv-scanner",
+   "summary": "Dependency vulnerabilities from OSV.dev.",
+   "install": {
+    "method": "system",
+    "bin": "osv-scanner",
+    "cmds": {
+     "darwin": "brew install osv-scanner",
+     "linux": "brew install osv-scanner"
+    },
+    "manual": "https://google.github.io/osv-scanner/installation/"
+   },
+   "verify": "osv-scanner --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro",
+    "devops-pro"
+   ],
+   "observes": [
+    "vulns",
+    "iac-findings"
+   ],
+   "controls": [],
+   "id": "trivy",
+   "summary": "Scan images, filesystems, IaC for vulns and misconfig.",
+   "install": {
+    "method": "system",
+    "bin": "trivy",
+    "cmds": {
+     "darwin": "brew install trivy",
+     "linux": "brew install trivy"
+    },
+    "manual": "https://trivy.dev/latest/getting-started/installation/"
+   },
+   "verify": "trivy --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "vulns"
+   ],
+   "controls": [],
+   "id": "grype",
+   "summary": "Vulnerability scanner for images and SBOMs.",
+   "install": {
+    "method": "system",
+    "bin": "grype",
+    "cmds": {
+     "darwin": "brew install grype",
+     "linux": "brew install grype"
+    },
+    "manual": "https://github.com/anchore/grype#installation"
+   },
+   "verify": "grype --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security",
+    "legal"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "sbom"
+   ],
+   "controls": [],
+   "id": "syft",
+   "summary": "Generate an SBOM.",
+   "install": {
+    "method": "system",
+    "bin": "syft",
+    "cmds": {
+     "darwin": "brew install syft",
+     "linux": "brew install syft"
+    },
+    "manual": "https://github.com/anchore/syft#installation"
+   },
+   "verify": "syft --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security",
+    "devops"
+   ],
+   "bundles": [
+    "security-pro",
+    "devops-pro"
+   ],
+   "observes": [
+    "dockerfile-lint"
+   ],
+   "controls": [],
+   "id": "hadolint",
+   "summary": "Dockerfile linter.",
+   "install": {
+    "method": "system",
+    "bin": "hadolint",
+    "cmds": {
+     "darwin": "brew install hadolint",
+     "linux": "brew install hadolint"
+    },
+    "manual": "https://github.com/hadolint/hadolint#install"
+   },
+   "verify": "hadolint --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security",
+    "web"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "dast-findings"
+   ],
+   "controls": [],
+   "id": "zap",
+   "summary": "OWASP ZAP baseline scan via Docker.",
+   "install": {
+    "method": "system",
+    "bin": "docker",
+    "cmds": {
+     "linux": "docker pull ghcr.io/zaproxy/zaproxy:stable",
+     "darwin": "docker pull ghcr.io/zaproxy/zaproxy:stable"
+    }
+   },
+   "verify": "docker --version",
+   "notes": "Run: docker run -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t <url>"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "dast-findings"
+   ],
+   "controls": [],
+   "id": "nuclei",
+   "summary": "Template-based vulnerability scanner.",
+   "install": {
+    "method": "system",
+    "bin": "nuclei",
+    "cmds": {
+     "darwin": "brew install nuclei",
+     "linux": "brew install nuclei"
+    },
+    "manual": "https://docs.projectdiscovery.io/tools/nuclei/install"
+   },
+   "verify": "nuclei --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "lint"
+   ],
+   "controls": [
+    "format"
+   ],
+   "id": "ruff",
+   "summary": "Very fast Python linter/formatter.",
+   "install": {
+    "method": "pip",
+    "pkg": "ruff",
+    "bin": "ruff"
+   },
+   "verify": "ruff --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "types"
+   ],
+   "controls": [],
+   "id": "mypy",
+   "summary": "Python static type checker.",
+   "install": {
+    "method": "pip",
+    "pkg": "mypy",
+    "bin": "mypy"
+   },
+   "verify": "mypy --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro"
+   ],
+   "observes": [
+    "types"
+   ],
+   "controls": [],
+   "id": "pyright",
+   "summary": "Fast Python type checker.",
+   "install": {
+    "method": "npm",
+    "pkg": "pyright",
+    "bin": "pyright",
+    "post": []
+   },
+   "verify": "pyright --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "test-results"
+   ],
+   "controls": [],
+   "id": "pytest",
+   "summary": "Python test runner.",
+   "install": {
+    "method": "pip",
+    "pkg": "pytest",
+    "bin": "pytest"
+   },
+   "verify": "pytest --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "coverage"
+   ],
+   "controls": [],
+   "id": "coverage",
+   "summary": "Python test coverage.",
+   "install": {
+    "method": "pip",
+    "pkg": "coverage",
+    "bin": "coverage"
+   },
+   "verify": "coverage --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "property-tests"
+   ],
+   "controls": [],
+   "id": "hypothesis",
+   "summary": "Property-based testing for Python.",
+   "install": {
+    "method": "pip",
+    "pkg": "hypothesis",
+    "bin": null
+   },
+   "verify": "python -c \"import hypothesis\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test",
+    "quality"
+   ],
+   "bundles": [
+    "api-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "mutation-score"
+   ],
+   "controls": [],
+   "id": "mutmut",
+   "summary": "Mutation testing for Python.",
+   "install": {
+    "method": "pip",
+    "pkg": "mutmut",
+    "bin": "mutmut"
+   },
+   "verify": "mutmut --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "quality"
+   ],
+   "bundles": [
+    "core"
+   ],
+   "observes": [],
+   "controls": [
+    "hooks"
+   ],
+   "id": "pre-commit",
+   "summary": "Git hook runner for linters/formatters.",
+   "install": {
+    "method": "pip",
+    "pkg": "pre-commit",
+    "bin": "pre-commit"
+   },
+   "verify": "pre-commit --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "build"
+   ],
+   "id": "cmake",
+   "summary": "CMake build system (user-space).",
+   "install": {
+    "method": "pip",
+    "pkg": "cmake",
+    "bin": "cmake"
+   },
+   "verify": "cmake --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "build"
+   ],
+   "id": "ninja",
+   "summary": "Fast build backend.",
+   "install": {
+    "method": "pip",
+    "pkg": "ninja",
+    "bin": "ninja"
+   },
+   "verify": "ninja --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "systems",
+    "quality"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "lint",
+    "sast-findings"
+   ],
+   "controls": [],
+   "id": "clang-tidy",
+   "summary": "C/C++ static analysis and style checks.",
+   "install": {
+    "method": "pip",
+    "pkg": "clang-tidy",
+    "bin": "clang-tidy"
+   },
+   "verify": "clang-tidy --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems",
+    "quality"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "sast-findings"
+   ],
+   "controls": [],
+   "id": "cppcheck",
+   "summary": "C/C++ static analyzer.",
+   "install": {
+    "method": "system",
+    "bin": "cppcheck",
+    "cmds": {
+     "linux": "sudo apt-get install -y cppcheck",
+     "darwin": "brew install cppcheck"
+    }
+   },
+   "verify": "cppcheck --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "backtraces",
+    "state"
+   ],
+   "controls": [
+    "debug"
+   ],
+   "id": "gdb",
+   "summary": "GNU debugger.",
+   "install": {
+    "method": "system",
+    "bin": "gdb",
+    "cmds": {
+     "linux": "sudo apt-get install -y gdb",
+     "darwin": "brew install gdb"
+    }
+   },
+   "verify": "gdb --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "backtraces",
+    "state"
+   ],
+   "controls": [
+    "debug"
+   ],
+   "id": "lldb",
+   "summary": "LLVM debugger.",
+   "install": {
+    "method": "system",
+    "bin": "lldb",
+    "cmds": {
+     "linux": "sudo apt-get install -y lldb",
+     "darwin": "brew install llvm"
+    }
+   },
+   "verify": "lldb --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "memory-errors",
+    "profile"
+   ],
+   "controls": [],
+   "id": "valgrind",
+   "summary": "Memory errors and leaks; callgrind profiling.",
+   "install": {
+    "method": "system",
+    "bin": "valgrind",
+    "cmds": {
+     "linux": "sudo apt-get install -y valgrind"
+    }
+   },
+   "verify": "valgrind --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "build-cache"
+   ],
+   "id": "ccache",
+   "summary": "Compiler cache for faster rebuilds.",
+   "install": {
+    "method": "system",
+    "bin": "ccache",
+    "cmds": {
+     "linux": "sudo apt-get install -y ccache",
+     "darwin": "brew install ccache"
+    }
+   },
+   "verify": "ccache --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems",
+    "perf"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "cpu-profile"
+   ],
+   "controls": [],
+   "id": "perf",
+   "summary": "Linux CPU profiler.",
+   "install": {
+    "method": "system",
+    "bin": "perf",
+    "cmds": {
+     "linux": "sudo apt-get install -y linux-tools-generic"
+    }
+   },
+   "verify": "perf --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems",
+    "perf"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "heap-profile"
+   ],
+   "controls": [],
+   "id": "heaptrack",
+   "summary": "Heap allocation profiler.",
+   "install": {
+    "method": "system",
+    "bin": "heaptrack",
+    "cmds": {
+     "linux": "sudo apt-get install -y heaptrack"
+    }
+   },
+   "verify": "heaptrack --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "systems",
+    "security"
+   ],
+   "bundles": [
+    "systems-pro",
+    "security-pro"
+   ],
+   "observes": [
+    "crashes"
+   ],
+   "controls": [
+    "fuzz"
+   ],
+   "id": "afl++",
+   "summary": "Coverage-guided fuzzer.",
+   "install": {
+    "method": "system",
+    "bin": "afl-fuzz",
+    "cmds": {
+     "linux": "sudo apt-get install -y afl++",
+     "darwin": "brew install afl++"
+    }
+   },
+   "verify": "afl-fuzz -h"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "test",
+    "security"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "crashes"
+   ],
+   "controls": [
+    "fuzz"
+   ],
+   "id": "atheris",
+   "summary": "Coverage-guided fuzzing for Python.",
+   "install": {
+    "method": "pip",
+    "pkg": "atheris",
+    "bin": null
+   },
+   "verify": "python -c \"import atheris\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "perf"
+   ],
+   "bundles": [
+    "systems-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "benchmarks"
+   ],
+   "controls": [],
+   "id": "hyperfine",
+   "summary": "Command-line benchmarking with statistics.",
+   "install": {
+    "method": "system",
+    "bin": "hyperfine",
+    "cmds": {
+     "linux": "sudo apt-get install -y hyperfine",
+     "darwin": "brew install hyperfine"
+    }
+   },
+   "verify": "hyperfine --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "embedded"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "embedded-build"
+   ],
+   "id": "platformio",
+   "summary": "Embedded build/test/upload across MCUs.",
+   "install": {
+    "method": "pip",
+    "pkg": "platformio",
+    "bin": "pio"
+   },
+   "verify": "pio --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "embedded",
+    "systems"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "emulate"
+   ],
+   "id": "qemu",
+   "summary": "Machine emulator for firmware/OS testing.",
+   "install": {
+    "method": "system",
+    "bin": "qemu-system-x86_64",
+    "cmds": {
+     "linux": "sudo apt-get install -y qemu-system",
+     "darwin": "brew install qemu"
+    }
+   },
+   "verify": "qemu-system-x86_64 --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "embedded"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "flash",
+    "debug"
+   ],
+   "id": "openocd",
+   "summary": "On-chip debugging and flashing.",
+   "install": {
+    "method": "system",
+    "bin": "openocd",
+    "cmds": {
+     "linux": "sudo apt-get install -y openocd",
+     "darwin": "brew install openocd"
+    }
+   },
+   "verify": "openocd --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "perf"
+   ],
+   "bundles": [
+    "systems-pro"
+   ],
+   "observes": [
+    "cpu-profile"
+   ],
+   "controls": [],
+   "id": "flamegraph",
+   "summary": "Flame graph generation (cargo).",
+   "install": {
+    "method": "system",
+    "bin": "flamegraph",
+    "cmds": {
+     "linux": "cargo install flamegraph",
+     "darwin": "cargo install flamegraph"
+    },
+    "manual": "https://github.com/flamegraph-rs/flamegraph"
+   },
+   "verify": "flamegraph --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "perf"
+   ],
+   "bundles": [
+    "api-pro",
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "cpu-profile"
+   ],
+   "controls": [],
+   "id": "py-spy",
+   "summary": "Sampling profiler for Python.",
+   "install": {
+    "method": "pip",
+    "pkg": "py-spy",
+    "bin": "py-spy"
+   },
+   "verify": "py-spy --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "perf"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "cpu-profile",
+    "event-loop"
+   ],
+   "controls": [],
+   "id": "clinic",
+   "summary": "Node.js performance diagnostics.",
+   "install": {
+    "method": "npm",
+    "pkg": "clinic",
+    "bin": "clinic",
+    "post": []
+   },
+   "verify": "clinic --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "perf"
+   ],
+   "bundles": [
+    "api-pro"
+   ],
+   "observes": [
+    "cpu-profile"
+   ],
+   "controls": [],
+   "id": "0x",
+   "summary": "Flamegraphs for Node.js.",
+   "install": {
+    "method": "npm",
+    "pkg": "0x",
+    "bin": "0x",
+    "post": []
+   },
+   "verify": "0x --version"
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "mobile"
+   ],
+   "bundles": [
+    "mobile-pro"
+   ],
+   "observes": [
+    "mobile-screenshot"
+   ],
+   "controls": [
+    "mobile-ui"
+   ],
+   "id": "appium",
+   "summary": "Cross-platform mobile UI automation.",
+   "install": {
+    "method": "npm",
+    "pkg": "appium",
+    "bin": "appium",
+    "post": []
+   },
+   "verify": "appium --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "mobile"
+   ],
+   "bundles": [
+    "mobile-pro"
+   ],
+   "observes": [
+    "logcat",
+    "mobile-screenshot"
+   ],
+   "controls": [
+    "android"
+   ],
+   "id": "adb",
+   "summary": "Android Debug Bridge: install, logcat, screenshots.",
+   "install": {
+    "method": "system",
+    "bin": "adb",
+    "cmds": {
+     "linux": "sudo apt-get install -y android-tools-adb",
+     "darwin": "brew install android-platform-tools"
+    }
+   },
+   "verify": "adb version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "mobile"
+   ],
+   "bundles": [
+    "mobile-pro"
+   ],
+   "observes": [
+    "mobile-flows"
+   ],
+   "controls": [
+    "mobile-ui"
+   ],
+   "id": "maestro",
+   "summary": "Mobile UI flow testing (YAML flows).",
+   "install": {
+    "method": "system",
+    "bin": "maestro",
+    "cmds": {
+     "linux": "curl -Ls \"https://get.maestro.mobile.dev\" | bash",
+     "darwin": "curl -Ls \"https://get.maestro.mobile.dev\" | bash"
+    }
+   },
+   "verify": "maestro --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "desktop",
+    "game"
+   ],
+   "bundles": [
+    "game-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "virtual-display"
+   ],
+   "id": "xvfb",
+   "summary": "Virtual display for headless GUI apps and games.",
+   "install": {
+    "method": "system",
+    "bin": "xvfb-run",
+    "cmds": {
+     "linux": "sudo apt-get install -y xvfb"
+    }
+   },
+   "verify": "xvfb-run --help"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "desktop",
+    "game"
+   ],
+   "bundles": [
+    "game-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "keyboard",
+    "mouse"
+   ],
+   "id": "xdotool",
+   "summary": "Simulate keyboard/mouse input on X11.",
+   "install": {
+    "method": "system",
+    "bin": "xdotool",
+    "cmds": {
+     "linux": "sudo apt-get install -y xdotool"
+    }
+   },
+   "verify": "xdotool --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "desktop",
+    "game"
+   ],
+   "bundles": [
+    "game-pro"
+   ],
+   "observes": [
+    "screenshot"
+   ],
+   "controls": [],
+   "id": "scrot",
+   "summary": "Capture screenshots of an X display.",
+   "install": {
+    "method": "system",
+    "bin": "scrot",
+    "cmds": {
+     "linux": "sudo apt-get install -y scrot"
+    }
+   },
+   "verify": "scrot --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "desktop",
+    "release"
+   ],
+   "bundles": [
+    "web-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "package"
+   ],
+   "id": "electron-builder",
+   "summary": "Package and publish Electron apps.",
+   "install": {
+    "method": "npm",
+    "pkg": "electron-builder",
+    "bin": "electron-builder",
+    "post": []
+   },
+   "verify": "electron-builder --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "release"
+   ],
+   "bundles": [
+    "bots-pro",
+    "api-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "package"
+   ],
+   "id": "pyinstaller",
+   "summary": "Package Python apps as executables.",
+   "install": {
+    "method": "pip",
+    "pkg": "pyinstaller",
+    "bin": "pyinstaller"
+   },
+   "verify": "pyinstaller --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "media"
+   ],
+   "bundles": [
+    "media-pro",
+    "game-pro"
+   ],
+   "observes": [
+    "media-info",
+    "frames",
+    "audio"
+   ],
+   "controls": [
+    "transcode"
+   ],
+   "id": "ffmpeg",
+   "summary": "Inspect, convert, and extract frames/audio.",
+   "install": {
+    "method": "system",
+    "bin": "ffmpeg",
+    "cmds": {
+     "linux": "sudo apt-get install -y ffmpeg",
+     "darwin": "brew install ffmpeg"
+    }
+   },
+   "verify": "ffmpeg -version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "media"
+   ],
+   "bundles": [
+    "media-pro"
+   ],
+   "observes": [
+    "image-compare"
+   ],
+   "controls": [
+    "image-process"
+   ],
+   "id": "imagemagick",
+   "summary": "Image processing and comparison.",
+   "install": {
+    "method": "system",
+    "bin": "convert",
+    "cmds": {
+     "linux": "sudo apt-get install -y imagemagick",
+     "darwin": "brew install imagemagick"
+    }
+   },
+   "verify": "convert -version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "media"
+   ],
+   "bundles": [
+    "media-pro"
+   ],
+   "observes": [
+    "audio-stats"
+   ],
+   "controls": [
+    "audio-process"
+   ],
+   "id": "sox",
+   "summary": "Audio processing and analysis.",
+   "install": {
+    "method": "system",
+    "bin": "sox",
+    "cmds": {
+     "linux": "sudo apt-get install -y sox",
+     "darwin": "brew install sox"
+    }
+   },
+   "verify": "sox --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "media",
+    "visual"
+   ],
+   "bundles": [
+    "media-pro",
+    "web-pro"
+   ],
+   "observes": [
+    "ocr-text"
+   ],
+   "controls": [],
+   "id": "tesseract",
+   "summary": "OCR: read text out of screenshots/images.",
+   "install": {
+    "method": "system",
+    "bin": "tesseract",
+    "cmds": {
+     "linux": "sudo apt-get install -y tesseract-ocr",
+     "darwin": "brew install tesseract"
+    }
+   },
+   "verify": "tesseract --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "media"
+   ],
+   "bundles": [
+    "media-pro"
+   ],
+   "observes": [
+    "metadata"
+   ],
+   "controls": [],
+   "id": "exiftool",
+   "summary": "Read/write media metadata.",
+   "install": {
+    "method": "system",
+    "bin": "exiftool",
+    "cmds": {
+     "linux": "sudo apt-get install -y libimage-exiftool-perl",
+     "darwin": "brew install exiftool"
+    }
+   },
+   "verify": "exiftool --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "media",
+    "visual"
+   ],
+   "bundles": [
+    "media-pro",
+    "game-pro"
+   ],
+   "observes": [
+    "image-analysis"
+   ],
+   "controls": [],
+   "id": "opencv",
+   "summary": "Computer vision: image/frame analysis.",
+   "install": {
+    "method": "pip",
+    "pkg": "opencv-python-headless",
+    "bin": null
+   },
+   "verify": "python -c \"import cv2\""
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "media"
+   ],
+   "bundles": [
+    "media-pro"
+   ],
+   "observes": [
+    "transcript"
+   ],
+   "controls": [],
+   "id": "faster-whisper",
+   "summary": "Speech-to-text: verify spoken audio matches the script.",
+   "install": {
+    "method": "pip",
+    "pkg": "faster-whisper",
+    "bin": null
+   },
+   "verify": "python -c \"import faster_whisper\"",
+   "notes": "Downloads model weights on first use."
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data"
+   ],
+   "bundles": [
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "data-stats"
+   ],
+   "controls": [],
+   "id": "pandas",
+   "summary": "Dataframes and data inspection.",
+   "install": {
+    "method": "pip",
+    "pkg": "pandas",
+    "bin": null
+   },
+   "verify": "python -c \"import pandas\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "data-stats"
+   ],
+   "controls": [],
+   "id": "polars",
+   "summary": "Fast dataframes.",
+   "install": {
+    "method": "pip",
+    "pkg": "polars",
+    "bin": null
+   },
+   "verify": "python -c \"import polars\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data",
+    "visual"
+   ],
+   "bundles": [
+    "data-pro",
+    "bots-pro"
+   ],
+   "observes": [
+    "plots"
+   ],
+   "controls": [],
+   "id": "matplotlib",
+   "summary": "Plot results to images the supervisor can look at.",
+   "install": {
+    "method": "pip",
+    "pkg": "matplotlib",
+    "bin": null
+   },
+   "verify": "python -c \"import matplotlib\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data",
+    "visual"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "plots"
+   ],
+   "controls": [],
+   "id": "plotly",
+   "summary": "Interactive plots.",
+   "install": {
+    "method": "pip",
+    "pkg": "plotly",
+    "bin": null
+   },
+   "verify": "python -c \"import plotly\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "data-quality"
+   ],
+   "controls": [],
+   "id": "great-expectations",
+   "summary": "Declarative data quality checks.",
+   "install": {
+    "method": "pip",
+    "pkg": "great-expectations",
+    "bin": null
+   },
+   "verify": "python -c \"import great_expectations\""
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "data"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "data-profile"
+   ],
+   "controls": [],
+   "id": "ydata-profiling",
+   "summary": "Automated dataset profiling reports.",
+   "install": {
+    "method": "pip",
+    "pkg": "ydata-profiling",
+    "bin": null
+   },
+   "verify": "python -c \"import ydata_profiling\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "data"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "notebooks"
+   ],
+   "id": "jupyter-nbconvert",
+   "summary": "Execute and export notebooks.",
+   "install": {
+    "method": "pip",
+    "pkg": "nbconvert",
+    "bin": "jupyter-nbconvert"
+   },
+   "verify": "jupyter-nbconvert --version"
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "ml"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "metrics"
+   ],
+   "controls": [],
+   "id": "mlflow",
+   "summary": "Experiment tracking and model registry.",
+   "install": {
+    "method": "pip",
+    "pkg": "mlflow",
+    "bin": "mlflow"
+   },
+   "verify": "mlflow --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "ml",
+    "data"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "data-versioning"
+   ],
+   "id": "dvc",
+   "summary": "Data and pipeline versioning.",
+   "install": {
+    "method": "pip",
+    "pkg": "dvc",
+    "bin": "dvc"
+   },
+   "verify": "dvc --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "ml"
+   ],
+   "bundles": [
+    "data-pro"
+   ],
+   "observes": [
+    "model-validity"
+   ],
+   "controls": [],
+   "id": "onnx",
+   "summary": "Model interchange format and checker.",
+   "install": {
+    "method": "pip",
+    "pkg": "onnx",
+    "bin": null
+   },
+   "verify": "python -c \"import onnx\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "trading"
+   ],
+   "bundles": [
+    "bots-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "exchange-api"
+   ],
+   "id": "ccxt",
+   "summary": "Unified crypto exchange API library (JS).",
+   "install": {
+    "method": "npm",
+    "pkg": "ccxt",
+    "bin": null,
+    "post": []
+   },
+   "verify": "node -e \"require.resolve('ccxt')\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "trading"
+   ],
+   "bundles": [
+    "bots-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "exchange-api"
+   ],
+   "id": "ccxt-py",
+   "summary": "Unified crypto exchange API library (Python). Use sandbox/paper mode.",
+   "install": {
+    "method": "pip",
+    "pkg": "ccxt",
+    "bin": null
+   },
+   "verify": "python -c \"import ccxt\""
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "trading"
+   ],
+   "bundles": [
+    "bots-pro"
+   ],
+   "observes": [
+    "backtest-metrics"
+   ],
+   "controls": [],
+   "id": "vectorbt",
+   "summary": "Fast vectorized backtesting.",
+   "install": {
+    "method": "pip",
+    "pkg": "vectorbt",
+    "bin": null
+   },
+   "verify": "python -c \"import vectorbt\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "trading"
+   ],
+   "bundles": [
+    "bots-pro"
+   ],
+   "observes": [
+    "backtest-metrics"
+   ],
+   "controls": [],
+   "id": "backtrader",
+   "summary": "Event-driven backtesting framework.",
+   "install": {
+    "method": "pip",
+    "pkg": "backtrader",
+    "bin": null
+   },
+   "verify": "python -c \"import backtrader\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro",
+    "api-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "containers"
+   ],
+   "id": "docker",
+   "summary": "Containers: build, run, isolate.",
+   "install": {
+    "method": "system",
+    "bin": "docker",
+    "cmds": {
+     "linux": "curl -fsSL https://get.docker.com | sh",
+     "darwin": "brew install --cask docker"
+    },
+    "manual": "https://docs.docker.com/engine/install/"
+   },
+   "verify": "docker --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "k8s"
+   ],
+   "id": "kubectl",
+   "summary": "Kubernetes client.",
+   "install": {
+    "method": "system",
+    "bin": "kubectl",
+    "cmds": {
+     "linux": "sudo snap install kubectl --classic",
+     "darwin": "brew install kubectl"
+    }
+   },
+   "verify": "kubectl version --client"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "k8s"
+   ],
+   "id": "helm",
+   "summary": "Kubernetes package manager.",
+   "install": {
+    "method": "system",
+    "bin": "helm",
+    "cmds": {
+     "linux": "sudo snap install helm --classic",
+     "darwin": "brew install helm"
+    }
+   },
+   "verify": "helm version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "k8s"
+   ],
+   "id": "kind",
+   "summary": "Local Kubernetes in Docker.",
+   "install": {
+    "method": "system",
+    "bin": "kind",
+    "cmds": {
+     "darwin": "brew install kind",
+     "linux": "brew install kind"
+    },
+    "manual": "https://kind.sigs.k8s.io/docs/user/quick-start/#installation"
+   },
+   "verify": "kind version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "iac"
+   ],
+   "id": "opentofu",
+   "summary": "Open-source Terraform-compatible IaC.",
+   "install": {
+    "method": "system",
+    "bin": "tofu",
+    "cmds": {
+     "linux": "sudo snap install opentofu --classic",
+     "darwin": "brew install opentofu"
+    }
+   },
+   "verify": "tofu version"
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "config-mgmt",
+    "ssh"
+   ],
+   "id": "ansible",
+   "summary": "Configuration management over SSH.",
+   "install": {
+    "method": "pip",
+    "pkg": "ansible-core",
+    "bin": "ansible"
+   },
+   "verify": "ansible --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [
+    "remote-logs",
+    "remote-state"
+   ],
+   "controls": [
+    "remote-exec"
+   ],
+   "id": "ssh",
+   "summary": "SSH to a remote server for deploys and log inspection.",
+   "install": {
+    "method": "builtin",
+    "bin": "ssh"
+   },
+   "verify": "ssh -V"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "remote-sync"
+   ],
+   "id": "rsync",
+   "summary": "Sync files to a remote server.",
+   "install": {
+    "method": "builtin",
+    "bin": "rsync"
+   },
+   "verify": "rsync --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "github"
+   ],
+   "id": "gh",
+   "summary": "GitHub CLI: PRs, issues, releases, Actions.",
+   "install": {
+    "method": "system",
+    "bin": "gh",
+    "cmds": {
+     "linux": "sudo apt-get install -y gh",
+     "darwin": "brew install gh"
+    },
+    "manual": "https://cli.github.com/"
+   },
+   "verify": "gh --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [
+    "ci-results"
+   ],
+   "controls": [],
+   "id": "act",
+   "summary": "Run GitHub Actions workflows locally.",
+   "install": {
+    "method": "system",
+    "bin": "act",
+    "cmds": {
+     "darwin": "brew install act",
+     "linux": "brew install act"
+    },
+    "manual": "https://nektosact.com/installation/"
+   },
+   "verify": "act --version"
+  },
+  {
+   "tier": 3,
+   "domains": [
+    "deploy"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "deploy"
+   ],
+   "id": "flyctl",
+   "summary": "Fly.io deploys.",
+   "install": {
+    "method": "system",
+    "bin": "flyctl",
+    "cmds": {
+     "linux": "curl -L https://fly.io/install.sh | sh",
+     "darwin": "brew install flyctl"
+    }
+   },
+   "verify": "flyctl --version",
+   "requires_env": [
+    "FLY_API_TOKEN"
+   ]
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "devops"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "tls"
+   ],
+   "id": "certbot",
+   "summary": "TLS certificates (Let's Encrypt).",
+   "install": {
+    "method": "pip",
+    "pkg": "certbot",
+    "bin": "certbot"
+   },
+   "verify": "certbot --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "observability"
+   ],
+   "bundles": [
+    "devops-pro",
+    "api-pro"
+   ],
+   "observes": [
+    "traces",
+    "metrics"
+   ],
+   "controls": [],
+   "id": "opentelemetry",
+   "summary": "Tracing/metrics instrumentation for Python.",
+   "install": {
+    "method": "pip",
+    "pkg": "opentelemetry-distro",
+    "bin": "opentelemetry-bootstrap"
+   },
+   "verify": "opentelemetry-bootstrap --help"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "observability"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [
+    "metrics"
+   ],
+   "controls": [],
+   "id": "prometheus",
+   "summary": "Metrics collection (via Docker).",
+   "install": {
+    "method": "system",
+    "bin": "docker",
+    "cmds": {
+     "linux": "docker pull prom/prometheus",
+     "darwin": "docker pull prom/prometheus"
+    }
+   },
+   "verify": "docker --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "observability"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [
+    "dashboards"
+   ],
+   "controls": [],
+   "id": "grafana",
+   "summary": "Dashboards (via Docker).",
+   "install": {
+    "method": "system",
+    "bin": "docker",
+    "cmds": {
+     "linux": "docker pull grafana/grafana",
+     "darwin": "docker pull grafana/grafana"
+    }
+   },
+   "verify": "docker --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "observability"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [
+    "uptime"
+   ],
+   "controls": [],
+   "id": "uptime-kuma",
+   "summary": "Uptime monitoring for deployed services (via Docker).",
+   "install": {
+    "method": "system",
+    "bin": "docker",
+    "cmds": {
+     "linux": "docker pull louislam/uptime-kuma:1",
+     "darwin": "docker pull louislam/uptime-kuma:1"
+    }
+   },
+   "verify": "docker --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "docs"
+   ],
+   "bundles": [
+    "docs-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "docs-site"
+   ],
+   "id": "mkdocs",
+   "summary": "Static documentation sites from Markdown.",
+   "install": {
+    "method": "pip",
+    "pkg": "mkdocs",
+    "bin": "mkdocs"
+   },
+   "verify": "mkdocs --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "docs"
+   ],
+   "bundles": [
+    "docs-pro",
+    "web-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "docs-site"
+   ],
+   "id": "typedoc",
+   "summary": "API docs from TypeScript.",
+   "install": {
+    "method": "npm",
+    "pkg": "typedoc",
+    "bin": "typedoc",
+    "post": []
+   },
+   "verify": "typedoc --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "docs",
+    "quality"
+   ],
+   "bundles": [
+    "docs-pro"
+   ],
+   "observes": [
+    "docs-lint"
+   ],
+   "controls": [],
+   "id": "markdownlint",
+   "summary": "Markdown linter.",
+   "install": {
+    "method": "npm",
+    "pkg": "markdownlint-cli",
+    "bin": "markdownlint",
+    "post": []
+   },
+   "verify": "markdownlint --version"
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "docs"
+   ],
+   "bundles": [
+    "docs-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "diagrams"
+   ],
+   "id": "mermaid-cli",
+   "summary": "Render Mermaid diagrams to images.",
+   "install": {
+    "method": "npm",
+    "pkg": "@mermaid-js/mermaid-cli",
+    "bin": "mmdc",
+    "post": []
+   },
+   "verify": "mmdc --version",
+   "notes": "Downloads its own Chromium."
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "docs"
+   ],
+   "bundles": [
+    "docs-pro",
+    "web-pro"
+   ],
+   "observes": [
+    "broken-links"
+   ],
+   "controls": [],
+   "id": "lychee",
+   "summary": "Fast broken-link checker.",
+   "install": {
+    "method": "system",
+    "bin": "lychee",
+    "cmds": {
+     "darwin": "brew install lychee",
+     "linux": "brew install lychee"
+    },
+    "manual": "https://lychee.cli.rs/installation/"
+   },
+   "verify": "lychee --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "docs"
+   ],
+   "bundles": [
+    "docs-pro"
+   ],
+   "observes": [
+    "prose-lint"
+   ],
+   "controls": [],
+   "id": "vale",
+   "summary": "Prose linter (style guides).",
+   "install": {
+    "method": "system",
+    "bin": "vale",
+    "cmds": {
+     "darwin": "brew install vale",
+     "linux": "brew install vale"
+    },
+    "manual": "https://vale.sh/docs/install"
+   },
+   "verify": "vale --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "release"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "release"
+   ],
+   "id": "semantic-release",
+   "summary": "Automated versioning and releases.",
+   "install": {
+    "method": "npm",
+    "pkg": "semantic-release",
+    "bin": "semantic-release",
+    "post": []
+   },
+   "verify": "semantic-release --version"
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "release"
+   ],
+   "bundles": [
+    "devops-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "release"
+   ],
+   "id": "changesets",
+   "summary": "Versioning and changelogs for packages.",
+   "install": {
+    "method": "npm",
+    "pkg": "@changesets/cli",
+    "bin": "changeset",
+    "post": []
+   },
+   "verify": "changeset --version"
+  },
+  {
+   "tier": 1,
+   "domains": [
+    "legal"
+   ],
+   "bundles": [
+    "security-pro"
+   ],
+   "observes": [
+    "licenses"
+   ],
+   "controls": [],
+   "id": "scancode",
+   "summary": "License and copyright detection.",
+   "install": {
+    "method": "pip",
+    "pkg": "scancode-toolkit",
+    "bin": "scancode"
+   },
+   "verify": "scancode --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "game"
+   ],
+   "bundles": [
+    "game-pro"
+   ],
+   "observes": [],
+   "controls": [
+    "engine"
+   ],
+   "id": "godot",
+   "summary": "Godot engine (headless export/test).",
+   "install": {
+    "method": "system",
+    "bin": "godot",
+    "cmds": {
+     "darwin": "brew install --cask godot"
+    },
+    "manual": "https://godotengine.org/download"
+   },
+   "verify": "godot --version"
+  }
+ ]
+}

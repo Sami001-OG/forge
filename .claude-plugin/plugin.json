@@ -1,0 +1,12 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "forge",
+  "displayName": "Forge",
+  "version": "0.1.0",
+  "description": "Autonomous build loop: a supervisor and an adversarial critic keep prompting your coding agent, verify the real result with real tools, and only deliver when everything agrees it is world-class.",
+  "author": { "name": "Sami" },
+  "homepage": "https://github.com/Sami001-OG/forge",
+  "repository": "https://github.com/Sami001-OG/forge",
+  "license": "MIT",
+  "keywords": ["autonomous", "agent-loop", "supervisor", "quality-gate", "verification"]
+}
