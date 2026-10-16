@@ -95,3 +95,10 @@ test('plan: --bar raises the last three stage bars', () => {
   assert.equal(p.bars.polish, 10);
   assert.equal(p.bars.skeleton, 6);
 });
+
+test('versions: beta-only packages are resolvable when explicitly allowed', () => {
+  const now = Date.parse('2026-10-15T00:00:00Z');
+  const times = { '0.49b0': '2026-06-01T00:00:00Z', '0.50b1': '2026-08-01T00:00:00Z', '0.51b0': '2026-10-14T00:00:00Z', '0.52.dev1': '2026-07-01T00:00:00Z' };
+  assert.equal(pickVersion(times, now), null);
+  assert.equal(pickVersion(times, now, 14, true), '0.50b1');
+});

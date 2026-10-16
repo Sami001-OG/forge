@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const T = [];
 const add = (o) => T.push({ tier: 0, domains: [], bundles: [], observes: [], controls: [], ...o });
-const npm = (id, pkg, bin, summary, o = {}) => add({ id, summary, install: { method: 'npm', pkg, bin, post: o.post || [] }, verify: o.verify ?? (bin ? `${bin} --version` : `node -e "require.resolve('${pkg}')"`), ...o, post: undefined });
-const pip = (id, pkg, bin, summary, o = {}) => add({ id, summary, install: { method: 'pip', pkg, bin }, verify: o.verify ?? (bin ? `${bin} --version` : `python -c "import ${o.mod || pkg.replace(/-/g, '_')}"`), ...o, mod: undefined });
+const npm = (id, pkg, bin, summary, o = {}) => add({ id, summary, install: { method: 'npm', pkg, bin, post: o.post || [] }, verify: o.verify ?? (bin ? `${bin} --version` : `node -e "require('fs').accessSync(require('path').join(process.env.NODE_PATH.split(require('path').delimiter)[0],'${pkg}','package.json'))"`), ...o, post: undefined });
+const pip = (id, pkg, bin, summary, o = {}) => add({ id, summary, install: { method: 'pip', pkg, bin, extra: o.extra, prerelease: o.prerelease }, verify: o.verify ?? (bin ? `${bin} --version` : `python -c "import ${o.mod || pkg.replace(/-/g, '_')}"`), ...o, mod: undefined, extra: undefined, prerelease: undefined });
 const sys = (id, bin, summary, cmds, o = {}) => add({ id, summary, tier: 2, install: { method: 'system', bin, cmds, manual: o.manual }, verify: o.verify ?? `${bin} --version`, ...o, manual: undefined });
 const builtin = (id, bin, summary, o = {}) => add({ id, summary, install: { method: 'builtin', bin }, verify: o.verify ?? `${bin} --version`, ...o });
 const apt = (pkg) => ({ linux: `sudo apt-get install -y ${pkg}` });
@@ -87,7 +87,7 @@ npm('pyright', 'pyright', 'pyright', 'Fast Python type checker.', { domains: ['q
 pip('pytest', 'pytest', 'pytest', 'Python test runner.', { domains: ['test'], bundles: ['api-pro', 'data-pro', 'bots-pro'], observes: ['test-results'] });
 pip('coverage', 'coverage', 'coverage', 'Python test coverage.', { domains: ['test'], bundles: ['api-pro', 'data-pro', 'bots-pro'], observes: ['coverage'] });
 pip('hypothesis', 'hypothesis', null, 'Property-based testing for Python.', { domains: ['test'], bundles: ['api-pro', 'data-pro', 'bots-pro'], observes: ['property-tests'] });
-pip('mutmut', 'mutmut', 'mutmut', 'Mutation testing for Python.', { domains: ['test', 'quality'], bundles: ['api-pro', 'bots-pro'], observes: ['mutation-score'] });
+pip('mutmut', 'mutmut', 'mutmut', 'Mutation testing for Python (needs a configured project; its CLI exits outside one).', { verify: '@exists', domains: ['test', 'quality'], bundles: ['api-pro', 'bots-pro'], observes: ['mutation-score'] });
 pip('pre-commit', 'pre-commit', 'pre-commit', 'Git hook runner for linters/formatters.', { domains: ['quality'], bundles: ['core'], controls: ['hooks'] });
 
 // ---------- systems / C++ / embedded ----------
@@ -139,7 +139,7 @@ pip('polars', 'polars', null, 'Fast dataframes.', { domains: ['data'], bundles: 
 pip('matplotlib', 'matplotlib', null, 'Plot results to images the supervisor can look at.', { domains: ['data', 'visual'], bundles: ['data-pro', 'bots-pro'], observes: ['plots'] });
 pip('plotly', 'plotly', null, 'Interactive plots.', { domains: ['data', 'visual'], bundles: ['data-pro'], observes: ['plots'] });
 pip('great-expectations', 'great-expectations', null, 'Declarative data quality checks.', { domains: ['data'], bundles: ['data-pro'], observes: ['data-quality'], mod: 'great_expectations' });
-pip('ydata-profiling', 'ydata-profiling', null, 'Automated dataset profiling reports.', { tier: 1, domains: ['data'], bundles: ['data-pro'], observes: ['data-profile'], mod: 'ydata_profiling' });
+pip('ydata-profiling', 'ydata-profiling', null, 'Automated dataset profiling reports.', { tier: 1, extra: ['setuptools<81'], domains: ['data'], bundles: ['data-pro'], observes: ['data-profile'], mod: 'ydata_profiling' });
 pip('jupyter-nbconvert', 'nbconvert', 'jupyter-nbconvert', 'Execute and export notebooks.', { domains: ['data'], bundles: ['data-pro'], controls: ['notebooks'] });
 pip('mlflow', 'mlflow', 'mlflow', 'Experiment tracking and model registry.', { tier: 1, domains: ['ml'], bundles: ['data-pro'], observes: ['metrics'] });
 pip('dvc', 'dvc', 'dvc', 'Data and pipeline versioning.', { domains: ['ml', 'data'], bundles: ['data-pro'], controls: ['data-versioning'] });
@@ -164,7 +164,7 @@ sys('gh', 'gh', 'GitHub CLI: PRs, issues, releases, Actions.', aptbrew('gh'), { 
 sys('act', 'act', 'Run GitHub Actions workflows locally.', brew('act'), { domains: ['devops'], bundles: ['devops-pro'], observes: ['ci-results'], manual: 'https://nektosact.com/installation/' });
 sys('flyctl', 'flyctl', 'Fly.io deploys.', { linux: 'curl -L https://fly.io/install.sh | sh', darwin: 'brew install flyctl' }, { tier: 3, domains: ['deploy'], bundles: ['devops-pro'], controls: ['deploy'], requires_env: ['FLY_API_TOKEN'] });
 pip('certbot', 'certbot', 'certbot', 'TLS certificates (Let\'s Encrypt).', { tier: 1, domains: ['devops'], bundles: ['devops-pro'], controls: ['tls'] });
-pip('opentelemetry', 'opentelemetry-distro', 'opentelemetry-bootstrap', 'Tracing/metrics instrumentation for Python.', { domains: ['observability'], bundles: ['devops-pro', 'api-pro'], observes: ['traces', 'metrics'], verify: 'opentelemetry-bootstrap --help' });
+pip('opentelemetry', 'opentelemetry-distro', 'opentelemetry-bootstrap', 'Tracing/metrics instrumentation for Python.', { prerelease: true, domains: ['observability'], bundles: ['devops-pro', 'api-pro'], observes: ['traces', 'metrics'], verify: 'opentelemetry-bootstrap --help' });
 sys('prometheus', 'docker', 'Metrics collection (via Docker).', { linux: 'docker pull prom/prometheus', darwin: 'docker pull prom/prometheus' }, { domains: ['observability'], bundles: ['devops-pro'], observes: ['metrics'], verify: 'docker --version' });
 sys('grafana', 'docker', 'Dashboards (via Docker).', { linux: 'docker pull grafana/grafana', darwin: 'docker pull grafana/grafana' }, { domains: ['observability'], bundles: ['devops-pro'], observes: ['dashboards'], verify: 'docker --version' });
 sys('uptime-kuma', 'docker', 'Uptime monitoring for deployed services (via Docker).', { linux: 'docker pull louislam/uptime-kuma:1', darwin: 'docker pull louislam/uptime-kuma:1' }, { domains: ['observability'], bundles: ['devops-pro'], observes: ['uptime'], verify: 'docker --version' });
@@ -180,7 +180,6 @@ sys('vale', 'vale', 'Prose linter (style guides).', brew('vale'), { domains: ['d
 // ---------- release / legal ----------
 npm('semantic-release', 'semantic-release', 'semantic-release', 'Automated versioning and releases.', { domains: ['release'], bundles: ['devops-pro'], controls: ['release'] });
 npm('changesets', '@changesets/cli', 'changeset', 'Versioning and changelogs for packages.', { domains: ['release'], bundles: ['devops-pro'], controls: ['release'] });
-pip('scancode', 'scancode-toolkit', 'scancode', 'License and copyright detection.', { tier: 1, domains: ['legal'], bundles: ['security-pro'], observes: ['licenses'] });
 
 // ---------- game engines ----------
 sys('godot', 'godot', 'Godot engine (headless export/test).', { darwin: 'brew install --cask godot' }, { domains: ['game'], bundles: ['game-pro'], controls: ['engine'], manual: 'https://godotengine.org/download', verify: 'godot --version' });

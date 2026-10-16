@@ -337,7 +337,7 @@
     "bin": null,
     "post": []
    },
-   "verify": "node -e \"require.resolve('pixelmatch')\""
+   "verify": "node -e \"require('fs').accessSync(require('path').join(process.env.NODE_PATH.split(require('path').delimiter)[0],'pixelmatch','package.json'))\""
   },
   {
    "tier": 0,
@@ -544,7 +544,7 @@
     "bin": null,
     "post": []
    },
-   "verify": "node -e \"require.resolve('fast-check')\""
+   "verify": "node -e \"require('fs').accessSync(require('path').join(process.env.NODE_PATH.split(require('path').delimiter)[0],'fast-check','package.json'))\""
   },
   {
    "tier": 0,
@@ -1535,13 +1535,13 @@
    ],
    "controls": [],
    "id": "mutmut",
-   "summary": "Mutation testing for Python.",
+   "summary": "Mutation testing for Python (needs a configured project; its CLI exits outside one).",
    "install": {
     "method": "pip",
     "pkg": "mutmut",
     "bin": "mutmut"
    },
-   "verify": "mutmut --version"
+   "verify": "@exists"
   },
   {
    "tier": 0,
@@ -2542,7 +2542,10 @@
    "install": {
     "method": "pip",
     "pkg": "ydata-profiling",
-    "bin": null
+    "bin": null,
+    "extra": [
+     "setuptools<81"
+    ]
    },
    "verify": "python -c \"import ydata_profiling\""
   },
@@ -2651,7 +2654,7 @@
     "bin": null,
     "post": []
    },
-   "verify": "node -e \"require.resolve('ccxt')\""
+   "verify": "node -e \"require('fs').accessSync(require('path').join(process.env.NODE_PATH.split(require('path').delimiter)[0],'ccxt','package.json'))\""
   },
   {
    "tier": 0,
@@ -3021,7 +3024,8 @@
    "install": {
     "method": "pip",
     "pkg": "opentelemetry-distro",
-    "bin": "opentelemetry-bootstrap"
+    "bin": "opentelemetry-bootstrap",
+    "prerelease": true
    },
    "verify": "opentelemetry-bootstrap --help"
   },
@@ -3281,27 +3285,6 @@
     "post": []
    },
    "verify": "changeset --version"
-  },
-  {
-   "tier": 1,
-   "domains": [
-    "legal"
-   ],
-   "bundles": [
-    "security-pro"
-   ],
-   "observes": [
-    "licenses"
-   ],
-   "controls": [],
-   "id": "scancode",
-   "summary": "License and copyright detection.",
-   "install": {
-    "method": "pip",
-    "pkg": "scancode-toolkit",
-    "bin": "scancode"
-   },
-   "verify": "scancode --version"
   },
   {
    "tier": 2,

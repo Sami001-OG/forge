@@ -20,7 +20,7 @@ const out = path.resolve(val('out') || path.join(dir, `${stamp}.png`));
 
 let chromium;
 try {
-  const req = createRequire(path.join(toolsDir(project), 'npm', 'package.json'));
+  const req = createRequire(path.join(toolsDir(project), 'npm', 'playwright', 'package.json'));
   ({ chromium } = req('playwright'));
 } catch {
   console.error('forge: playwright is not installed. Run: node <forge.mjs> tool install playwright');

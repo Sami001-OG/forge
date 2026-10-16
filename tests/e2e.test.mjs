@@ -143,3 +143,30 @@ test('tool provisioning policy: approval and credentials are enforced', () => {
   const info = forge(['tool', 'list', '--bundle', 'web-pro']);
   assert.match(info.stdout, /playwright/);
 });
+
+test('forge exec puts project-local tools on PATH; env prints the export line', () => {
+  const dir = path.join(proj, '.forge', 'tools', 'bin');
+  fs.mkdirSync(dir, { recursive: true });
+  const bin = path.join(dir, 'forge-demo-tool');
+  fs.writeFileSync(bin, '#!/bin/sh\necho demo-tool-ok\n');
+  fs.chmodSync(bin, 0o755);
+  const r = forge(['exec', '--', 'forge-demo-tool']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /demo-tool-ok/);
+  const missing = forge(['exec', '--', 'definitely-not-a-real-binary-xyz']);
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr + missing.stdout, /not found|not on PATH/i);
+  const e = forge(['env']);
+  assert.match(e.stdout, /export PATH=.*\.forge\/tools\/bin/);
+});
+
+test('SessionStart hook writes PATH into CLAUDE_ENV_FILE, idempotently and silently', () => {
+  const envFile = path.join(proj, 'envfile.sh');
+  const run = () => spawnSync(process.execPath, [path.join(root, 'scripts', 'env-hook.mjs')], { cwd: proj, env: { ...env, CLAUDE_ENV_FILE: envFile }, encoding: 'utf8', input: JSON.stringify({ cwd: proj, hook_event_name: 'SessionStart' }) });
+  const a = run(); const b = run();
+  assert.equal(a.status, 0); assert.equal(a.stdout, '');
+  const txt = fs.readFileSync(envFile, 'utf8');
+  assert.equal(txt.split('\n').filter((l) => l.includes('forge-tools-path')).length, 1);
+  assert.match(txt, /\.forge\/tools\/venv\/bin/);
+  assert.equal(b.status, 0);
+});

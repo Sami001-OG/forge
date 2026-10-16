@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { projectDir, forgeDir, readJson, writeJsonAtomic, readStdin, clip, toolEnv, toolsDir, posix } from './lib/util.mjs';
+import { projectDir, forgeDir, readJson, writeJsonAtomic, readStdin, clip, toolEnv, toolsDir, toolPathDirs, posix } from './lib/util.mjs';
 import { loadState, saveState, loadArtifacts, artifactFile, DEFAULT_CAPS } from './lib/state.mjs';
 import { applicableChecks, applicableCriteria, stageBrief, barFor } from './lib/gate-logic.mjs';
 import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
@@ -163,6 +163,22 @@ async function main() {
       break;
     }
     case 'doctor': await doctor(); break;
+    case 'exec': {
+      // Run any command with the project-local tools on PATH: forge exec -- eslint .
+      if (!pos.length) die('usage: forge exec -- <command> [args]   (runs with .forge/tools on PATH)');
+      const r = pos.length === 1
+        ? spawnSync(pos[0], { shell: true, stdio: 'inherit', env: toolEnv(project), cwd: project })
+        : spawnSync(pos[0], pos.slice(1), { stdio: 'inherit', env: toolEnv(project), cwd: project, shell: process.platform === 'win32' });
+      if (r.error) die(`forge exec: ${r.error.message}${r.error.code === 'ENOENT' ? `\n  "${pos[0]}" is not on PATH or in .forge/tools. Try: forge tool list --search ${pos[0]}  then  forge tool install <id>` : ''}`, 127);
+      process.exit(r.status ?? 1);
+      break;
+    }
+    case 'env': {
+      const sep = process.platform === 'win32' ? ';' : ':';
+      const dirs = toolPathDirs(project).map(posix).join(sep);
+      out(flags.json ? JSON.stringify({ path_prepend: toolPathDirs(project) }) : `export PATH="${dirs}${sep}$PATH"`);
+      break;
+    }
     case 'tool': await toolCmd(pos, flags); break;
     case 'shot': {
       const r = spawnSync(process.execPath, [path.join(here, 'shot.mjs'), ...rest], { stdio: 'inherit', env: toolEnv(project) });
@@ -171,7 +187,7 @@ async function main() {
     }
     case 'http': await httpCmd(pos, flags); break;
     default:
-      out('forge CLI: init | plan-set | start | checks | verdict | signoff | status | abort | doctor | tool | shot | http');
+      out('forge CLI: init | plan-set | start | checks | verdict | signoff | status | abort | doctor | exec | env | tool | shot | http');
   }
 }
 
@@ -263,7 +279,16 @@ async function toolCmd(pos, flags) {
     const ids = new Set(tools.map((t) => t.id));
     const bundles = loadBundles();
     for (const b of s.plan?.bundles || []) for (const id of bundles[b] || []) { const t = tools.find((x) => x.id === id); if (t && t.tier === 0 && t.install.method !== 'builtin' && (b !== 'core')) { /* bundle members are available on demand, not forced */ } }
-    const rows = [...want].filter((id) => ids.has(id)).map((id) => { const t = tools.find((x) => x.id === id); const ok = prov.verify(project, t).ok; return `${ok ? 'have' : 'NEED'} ${brief(t)}`; });
+    for (const id of [...want]) { const t = tools.find((x) => x.id === id); for (const r of t?.requires || []) want.add(r); }
+    const rows = [...want].filter((id) => ids.has(id)).map((id) => {
+      const t = tools.find((x) => x.id === id);
+      const ok = prov.verify(project, t).ok;
+      const g = prov.gate(project, t);
+      const how = ok ? '' : g.ok ? ' [auto-installable]' : g.needs_approval ? ' [needs user approval]' : ` [${g.reason}]`;
+      return `${ok ? 'have' : 'NEED'} ${brief(t)}${how}`;
+    });
+    const unknown = [...want].filter((id) => !ids.has(id));
+    for (const u of unknown) rows.push(`WARN unknown tool in plan: ${u}`);
     out(rows.length ? rows.join('\n') : 'no tools required by the plan beyond what is installed');
   } else if (sub === 'install') {
     const targets = [];
@@ -295,7 +320,7 @@ async function toolCmd(pos, flags) {
     out(`custom tool ${f.id} registered at tier >= 2 (needs user approval before install)`);
   } else if (sub === 'doctor') {
     await doctor();
-  } else out('forge tool: list [--bundle b] [--search q] [--installed] | info <id> | plan | install <id|bundle:name|plan>... | approve <id> | run <id> -- args | add <file> | doctor');
+  } else out('forge tool: list [--bundle b] [--search q] [--installed] | info <id> | plan | install <id|bundle:name|plan>... | approve <id> | run <id> -- args | add <file> | doctor\nforge exec -- <command>   run anything with project-local tools on PATH\nforge env                  print an export PATH line for the project-local tools');
 }
 
 async function httpCmd(pos, flags) {

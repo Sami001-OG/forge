@@ -39,16 +39,26 @@ export function readStdin() {
 
 export function toolPathEntries(p) {
   const t = toolsDir(p);
-  return [
-    path.join(t, 'npm', 'node_modules', '.bin'),
-    path.join(t, 'venv', 'bin'),
-    path.join(t, 'venv', 'Scripts'),
-    path.join(t, 'bin'),
-  ].filter((d) => fs.existsSync(d));
+  return [path.join(t, 'bin'), path.join(t, 'venv', 'bin'), path.join(t, 'venv', 'Scripts')].filter((d) => fs.existsSync(d));
+}
+
+export function pathKey(env = process.env) {
+  return Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'PATH';
 }
 
 export function toolEnv(p, extra = {}) {
   const sep = process.platform === 'win32' ? ';' : ':';
-  const PATH = [...toolPathEntries(p), process.env.PATH || ''].join(sep);
-  return { ...process.env, PATH, ...extra };
+  const key = pathKey();
+  const PATH = [...toolPathEntries(p), process.env[key] || ''].join(sep);
+  // Shared npm *libraries* (no CLI) live in one dir that node can resolve from.
+  const libs = path.join(toolsDir(p), 'npm', '_libs', 'node_modules');
+  const NODE_PATH = [libs, process.env.NODE_PATH || ''].filter(Boolean).join(sep);
+  // Keep tool startup quick and quiet: no update/telemetry network calls during verification.
+  return { ...process.env, [key]: PATH, NODE_PATH, SEMGREP_ENABLE_VERSION_CHECK: '0', SEMGREP_SEND_METRICS: 'off', PIP_DISABLE_PIP_VERSION_CHECK: '1', ...extra };
+}
+
+// Project-local tool dirs whether or not they exist yet (they appear after the first install).
+export function toolPathDirs(p) {
+  const t = toolsDir(p);
+  return [path.join(t, 'bin'), path.join(t, 'venv', 'bin'), path.join(t, 'venv', 'Scripts')];
 }

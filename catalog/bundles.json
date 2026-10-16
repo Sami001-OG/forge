@@ -173,8 +173,7 @@
   "zap",
   "nuclei",
   "afl++",
-  "atheris",
-  "scancode"
+  "atheris"
  ],
  "bots-pro": [
   "ruff",
