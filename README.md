@@ -73,6 +73,7 @@ Forge plans, asks you one confirmation question (skip it with `--auto`), install
 | Command | What it does |
 |---|---|
 | `/forge:build <what to build> [flags]` | Start a loop |
+| `/forge:tweak <small change>` | Change something Forge already built; re-verifies only what the change affects |
 | `/forge:status` | Stage, round, scores per axis, what is pending |
 | `/forge:abort` | Stop the loop (state stays in `.forge/`) |
 | `/forge:doctor` | Check prerequisites, the catalog, and installed tools |
@@ -147,6 +148,18 @@ A stage passes only if **all** of these hold:
 4. Supervisor and critic both said approve.
 5. On the final stage: the builder's own `signoff complete`.
 
+## Fast re-verification (no more hour-long checks for a tiny change)
+
+Forge fingerprints the files each acceptance criterion and hard check depends on. A result that passed and whose files have not changed is **carried over**, not redone:
+
+- **Criteria:** the supervisor and critic assess only the *dirty* ones (changed or never passed). Each assessed criterion records the files it actually exercised (`depends_on`), so later rounds get more precise.
+- **Checks:** unscoped checks (fast unit/lint/type checks) always run as the safety net. Slow ones (e2e, Lighthouse, scans) carry a `scope` and are skipped when unchanged.
+- **Fast path:** if nothing a verified criterion depends on changed and the checks pass, the previous verdicts are carried over automatically and no supervisor or critic is run.
+- **Full pass when it matters:** the first verification, a change to shared config (`package.json`, lockfiles, `tsconfig`, `*.config.*`, `Dockerfile`, `.env*`), more than 40% of files changed, or `forge checks --full`.
+- **`/forge:tweak <change>`:** for small edits to a finished product. One minimal change, a light critic, a 45-minute cap, and everything unaffected carried over.
+
+`/forge:status` shows how many criteria were re-verified versus carried over each round.
+
 ## Tools
 
 The catalog has **139 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
@@ -200,6 +213,7 @@ In your project Forge writes only to `.forge/` (git-ignored): `state.json`, `rub
 | "command not found" for an installed tool | Run it as `forge exec -- <command>`, or `forge tool list --installed` to confirm it is installed |
 | Screenshots fail on Linux | `forge tool run playwright -- install-deps` (needs sudo), or use the Playwright Docker image |
 | A tool shows NEEDS_APPROVAL | By design: approve it when asked, or accept the blind spot |
+| Verification is slow | Check `/forge:status`: it shows re-verified vs carried criteria. Give slow checks a `scope`; use `/forge:tweak` for small edits |
 | Loop ended "capped" or "stalled" | Read `.forge/DELIVERY.md` for the gap report, raise the caps, or narrow the request |
 | Want out | `/forge:abort` |
 

@@ -32,7 +32,12 @@ export function evaluate(state, art) {
   const byId = new Map((sup.criteria || []).map((c) => [c.id, c]));
   let passedCriteria = 0;
   for (const c of crit) {
-    const e = byId.get(c.id);
+    let e = byId.get(c.id);
+    if (!e && (art.scope?.carried_criteria || []).includes(c.id)) {
+      // Unchanged since it last passed (same content fingerprint): carried forward, not re-verified.
+      const v = state.verified?.criteria?.[c.id];
+      if (v && v.pass && v.observed && v.fp === art.scope?.criteria_fp?.[c.id]) e = { ...v, carried: true };
+    }
     if (!e) problems.push(`criterion not assessed: ${c.id} - ${c.text}`);
     else if (!e.observed) problems.push(`criterion NOT OBSERVED (blind spot): ${c.id} - ${c.text}`);
     else if (!e.pass) problems.push(`criterion FAILED: ${c.id} - ${c.text}`);
@@ -41,8 +46,10 @@ export function evaluate(state, art) {
 
   const failedAxes = [];
   let score = 0;
+  const mins = {};
   for (const a of plan.axes) {
     const s = Math.min(Number(sup.axes?.[a.id] ?? 0), Number(cri.axes?.[a.id] ?? 0));
+    mins[a.id] = s;
     score += s;
     const need = a.critical ? bar : bar - 1;
     if (s < need) failedAxes.push({ id: a.id, score: s, need });
@@ -56,7 +63,7 @@ export function evaluate(state, art) {
   if (!criOk) problems.push('critic did not approve');
 
   const approved = problems.length === 0 && supOk && criOk && chk.all_pass === true;
-  return { approved, score, problems, failedAxes, bar, stage };
+  return { approved, score, problems, failedAxes, bar, stage, axes: mins };
 }
 
 function feedback(state, ev, art) {
@@ -97,6 +104,7 @@ function deliveryMessage(state, cli) {
     capped: 'STOPPED AT A CAP (rounds, time, or loop budget). The result is the best version so far, not an approved one.',
     stalled: 'STOPPED: the loop is no longer making progress.',
   }[state.delivering_reason] || 'Finishing.';
+  if (state.mode === 'tweak') return [`[forge] ${why}`, `Now write .forge/DELIVERY.md for this tweak ("${clip(state.tweak?.prompt, 200)}"): what changed, how it was verified (what was re-verified vs carried over unchanged), and any gaps. Then end your turn with a two-line summary. Do not start new work.`].join('\n');
   return [
     `[forge] ${why}`,
     'Now write .forge/DELIVERY.md with: (1) what was built, (2) exactly how to run/open it, (3) final rubric scores from the last verdicts, (4) honest known gaps (empty if truly none), (5) where deployed (if anything).',
@@ -147,6 +155,8 @@ export function decide(input, art, nowMs, opts = {}) {
 
   const ev = evaluate(st, art);
   const plan = st.plan;
+  st.last_axes = ev.axes;
+  st.last_eval = { approved: ev.approved, round: st.round, stage: ev.stage.id };
   st.history = st.history || [];
   st.history.push({ round: st.round, stage: ev.stage.id, score: ev.score, approved: ev.approved });
 

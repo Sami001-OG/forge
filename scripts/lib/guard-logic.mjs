@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-const PROTECTED = /^(state\.json|checks-\d+\.json|verdict-\d+-(supervisor|critic)\.json|signoff-\d+\.json|approvals\.json|tools\.json)$/;
+const PROTECTED = /^(state\.json|checks-\d+\.json|verdict-\d+-(supervisor|critic)\.json|signoff-\d+\.json|scope-\d+\.json|approvals\.json|tools\.json)$/;
 
 export function isProtectedPath(project, file) {
   if (!file) return false;
@@ -12,11 +12,11 @@ export function isProtectedPath(project, file) {
 }
 
 const WRITEISH = /(>|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\btruncate\b|\bperl\s+-i|\bdd\b|Out-File|Set-Content|Add-Content|writeFile|open\([^)]*['"]w)/;
-const NAMES = /\.forge[\\/]+(state\.json|checks-|verdict-|signoff-|approvals\.json|tools\.json)/;
+const NAMES = /\.forge[\\/]+(state\.json|checks-|verdict-|signoff-|scope-|approvals\.json|tools\.json)/;
 
 export function bashTouchesProtected(cmd) {
   if (!NAMES.test(cmd)) return false;
   // Commands that go through the forge CLI are the sanctioned writers.
-  if (/forge\.mjs["']?\s+(verdict|signoff|checks|tool|start|plan-set|init|abort)\b/.test(cmd)) return false;
+  if (/forge\.mjs["']?\s+(verdict|signoff|checks|tool|start|plan-set|init|abort|tweak)\b/.test(cmd)) return false;
   return WRITEISH.test(cmd);
 }

@@ -16,6 +16,14 @@ Forge installs tools project-locally in `.forge/tools`, which may not be on your
 3. For a `NEED` marked `[auto-installable]`, install it yourself: `forge tool install <id>`, then re-run. Only if install fails, or it is marked needs-approval/credentials, report it in `needs_tool`.
 4. Never mark a criterion unobserved before trying steps 2 and 3.
 
+## Incremental verification (do not redo what is already verified)
+Re-verifying everything every round wastes hours. Forge fingerprints the files each criterion depends on, so:
+- `forge status --json` shows this round's `scope`: `dirty_criteria` (changed or never passed: assess these) and `carried_criteria` (unchanged since they last passed: do NOT re-observe them; they are carried over automatically).
+- Spend your effort on the dirty criteria and on regressions the change could cause next to them. Previous axis scores are in `last_axes`: keep a previous score for areas you did not re-observe, lower it only if you find a regression, raise it only if the change improved it.
+- For each criterion you assess, list in `depends_on` the file globs it actually exercised (for example `["src/checkout/**", "public/checkout.html"]`). This makes future rounds precise. Be honest and complete: too narrow means a regression can hide.
+- If `scope.full` is true (first verification, a shared config changed, or most files changed), do a full pass.
+- If `scope.mode` is `tweak`: this is a small change to a finished product. Assess only the dirty criteria, run at most a couple of focused probes on the changed surface, and finish fast.
+
 ## Procedure
 1. `forge status --json` for the plan (stage, bar, axes with anchors, criteria in force) and this round's checks. Read `.forge/rubric.md` and `.forge/checks-<round>.json`.
 2. Start the product if needed (dev server, binary, bot in paper mode) and **observe every criterion in force with the tool its `observe` field names**. Look at screenshots yourself (desktop and mobile for anything visual). Read logs. Run the flows. Measure performance where relevant. Compare against the reference products in the plan.
@@ -32,14 +40,15 @@ forge verdict supervisor <<'JSON'
   "verdict": "approve" | "continue",
   "axes": { "<axis id>": 0-10, ... one per rubric axis },
   "criteria": [ { "id": "<criterion id>", "pass": true|false, "observed": true|false,
-                  "evidence": ["file:.forge/evidence/...", "check:<check id>", "run:<what you ran>"] } ],
+                  "evidence": ["file:.forge/evidence/...", "check:<check id>", "run:<what you ran>"],
+                  "depends_on": ["globs of the files this criterion exercised"] } ],
   "issues": ["specific, verifiable problems"],
   "next_prompt": "the exact instruction the builder must follow next (required if continue)",
   "needs_tool": [ { "what": "...", "why": "..." } ]
 }
 JSON
 ```
-Every criterion in force must appear. `observed:true` needs at least one `file:` (a screenshot or report under `.forge/evidence/`, or any file that exists) or `check:` evidence that really exists, or the CLI rejects the verdict.
+Every DIRTY criterion (see scope) must appear; carried ones are filled in automatically. `observed:true` needs at least one `file:` (a screenshot or report under `.forge/evidence/`, or any file that exists) or `check:` evidence that really exists, or the CLI rejects the verdict.
 7. `approve` only if you would stake your reputation on shipping it as it is. Otherwise `continue`.
 
 ## The next_prompt

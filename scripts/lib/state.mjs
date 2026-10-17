@@ -36,6 +36,7 @@ export function loadArtifacts(project, round) {
     supervisor: readJson(artifactFile(project, 'verdict', round, 'supervisor'), null),
     critic: readJson(artifactFile(project, 'verdict', round, 'critic'), null),
     signoff: readJson(artifactFile(project, 'signoff', round), null),
+    scope: readJson(path.join(forgeDir(project), `scope-${round}.json`), null),
     delivery: fs.existsSync(path.join(forgeDir(project), 'DELIVERY.md')),
   };
 }

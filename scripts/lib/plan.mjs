@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadCatalog, loadBundles, loadTargets } from './catalog.mjs';
 import { DEFAULT_STAGES, DEFAULT_BARS } from './state.mjs';
 import { forgeDir } from './util.mjs';
+import { DEFAULT_SHARED } from './fingerprint.mjs';
 
 const METHODS = new Set(['screenshot', 'test', 'http', 'run', 'inspect', 'metric', 'manual']);
 const ENVS = new Set(['local', 'remote', 'hybrid']);
@@ -19,6 +20,8 @@ export function normalizePlan(plan, opts = {}) {
   }
   p.checks = (p.checks || []).map((c) => ({ timeout_s: 600, ...c }));
   p.references ||= [];
+  p.ignore = Array.isArray(p.ignore) ? p.ignore : [];
+  p.shared = Array.isArray(p.shared) && p.shared.length ? p.shared : [...DEFAULT_SHARED];
   p.bundles = [...new Set(['core', ...(p.bundles || [])])];
   return p;
 }
@@ -59,6 +62,7 @@ export function validatePlan(plan, project) {
     need(typeof c.text === 'string' && c.text.length > 8, `criterion ${c.id}: text required`);
     need(stageIds.has(c.stage), `criterion ${c.id}: stage must be one of ${[...stageIds].join(', ')}`);
     need(typeof c.critical === 'boolean', `criterion ${c.id}: critical must be boolean`);
+    need(c.scope === undefined || (Array.isArray(c.scope) && c.scope.length && c.scope.every((x) => typeof x === 'string')), `criterion ${c.id}: scope must be a non-empty array of path globs`);
     need(c.observe && METHODS.has(c.observe.method), `criterion ${c.id}: observe.method must be one of ${[...METHODS].join(', ')}`);
     const tool = c.observe?.tool;
     need(tool === 'manual' || tool === 'builtin' || toolIds.has(tool), `criterion ${c.id}: observe.tool "${tool}" is not in the catalog (use "builtin" or "manual", or add it with the toolsmith)`);
@@ -70,6 +74,7 @@ export function validatePlan(plan, project) {
     kids.add(k.id);
     need(typeof k.cmd === 'string' && k.cmd.trim(), `check ${k.id}: cmd required`);
     need(!k.stage || stageIds.has(k.stage), `check ${k.id}: unknown stage ${k.stage}`);
+    need(k.scope === undefined || (Array.isArray(k.scope) && k.scope.length && k.scope.every((x) => typeof x === 'string')), `check ${k.id}: scope must be a non-empty array of path globs (omit it to always run)`);
   }
   need((plan.checks || []).some((k) => !k.stage || k.stage === plan.stages[0].id), `at least one check must apply from the first stage (${plan.stages[0].id})`);
   for (const b of plan.bundles || []) need(b === 'core' || bundles[b], `unknown bundle ${b} (known: ${Object.keys(bundles).join(', ')})`);
@@ -85,8 +90,8 @@ export function renderRubric(state) {
   if (p.references?.length) L.push('## Reference products\n' + p.references.map((r) => `- ${r.name}${r.url ? ` (${r.url})` : ''}: ${r.why || ''}`).join('\n') + '\n');
   L.push('## Stages and bars\n' + p.stages.map((s, i) => `${i + 1}. **${s.name}** (bar ${p.bars[s.id]}/10): ${s.goal}`).join('\n') + '\n');
   L.push('## Rubric axes (scored 0-10; 10 anchors)\n' + p.axes.map((a) => `- **${a.id}**${a.critical ? ' (critical)' : ''}: ${a.anchor}`).join('\n') + '\n');
-  L.push('## Acceptance criteria\n' + p.criteria.map((c) => `- [${c.id}] (from ${c.stage}${c.critical ? ', critical' : ''}) ${c.text}  -> observe via ${c.observe.method}/${c.observe.tool}`).join('\n') + '\n');
-  L.push('## Hard checks\n' + p.checks.map((c) => `- ${c.id}${c.stage ? ` (from ${c.stage})` : ''}: \`${c.cmd}\``).join('\n') + '\n');
+  L.push('## Acceptance criteria\n' + p.criteria.map((c) => `- [${c.id}] (from ${c.stage}${c.critical ? ', critical' : ''}) ${c.text}  -> observe via ${c.observe.method}/${c.observe.tool}${c.scope ? ` [scope: ${c.scope.join(', ')}]` : ''}`).join('\n') + '\n');
+  L.push('## Hard checks\n' + p.checks.map((c) => `- ${c.id}${c.stage ? ` (from ${c.stage})` : ''}${c.scope ? ` [scoped: ${c.scope.join(', ')}]` : ' [always runs]'}: \`${c.cmd}\``).join('\n') + '\n');
   return L.join('\n');
 }
 

@@ -10,6 +10,7 @@ import { applicableChecks, applicableCriteria, stageBrief, barFor } from './lib/
 import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
 import { loadCatalog, loadBundles, loadTargets, search, pluginRoot } from './lib/catalog.mjs';
 import * as prov from './lib/provision.mjs';
+import { takeSnapshot, scopeFp, changedFiles, hitsShared, snapshotObject, matcher, DEFAULT_IGNORE, DEFAULT_SHARED } from './lib/fingerprint.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const project = projectDir();
@@ -55,6 +56,7 @@ function statusText(s) {
     }
   }
   L.push(`this round: checks ${art.checks ? (art.checks.all_pass ? 'PASS' : 'FAIL') : '-'} · supervisor ${art.supervisor?.verdict || '-'} · critic ${art.critic?.verdict || '-'}`);
+  if (art.scope) L.push(`verification: ${art.scope.full ? `FULL (${art.scope.full_reason})` : `incremental, ${art.scope.changed_count} file(s) changed`} · re-verify ${art.scope.dirty_criteria.length}, carried ${art.scope.carried_criteria.length}${s.mode === 'tweak' ? ' · TWEAK mode' : ''}`);
   if (last) L.push(`last scored round: ${last.round} stage ${last.stage} score ${last.score} ${last.approved ? 'APPROVED' : 'rejected'}`);
   return L.join('\n');
 }
@@ -108,19 +110,61 @@ async function main() {
     case 'checks': {
       const s = need();
       if (s.status !== 'running') die(`forge: checks only run while the loop is running (status: ${s.status})`);
-      const list = applicableChecks(s.plan, s.stage_idx);
+      const ignore = [...DEFAULT_IGNORE, ...(s.plan.ignore || [])];
+      const shared = s.plan.shared?.length ? s.plan.shared : DEFAULT_SHARED;
+      const snap = takeSnapshot(project, ignore);
+      const lastSnapFile = path.join(forgeDir(project), 'last-snapshot.json');
+      const prev = readJson(lastSnapFile, null);
+      const changed = prev ? changedFiles(prev, snap) : [];
+      const total = snap.size;
+      const reason = flags.full ? 'forced (--full)' : !prev ? 'first verification' : hitsShared(changed, shared) ? 'a shared/config file changed' : (total > 20 && changed.length > total * 0.4) ? 'more than 40% of files changed' : null;
+      const full = !!reason;
+      s.verified ||= { checks: {}, criteria: {} };
+      // Criteria: re-verify only those whose dependency fingerprint changed (or that never passed).
+      const dirtyC = [], carriedC = [], criteria_fp = {};
+      for (const c of applicableCriteria(s.plan, s.stage_idx)) {
+        const v = s.verified.criteria[c.id];
+        const fp = scopeFp(snap, v?.depends_on || c.scope, shared);
+        criteria_fp[c.id] = fp;
+        if (!full && v && v.pass && v.observed && v.fp === fp) carriedC.push(c.id); else dirtyC.push(c.id);
+      }
+      // Checks: unscoped checks always run (they are the safety net); scoped ones are carried when unchanged.
       const results = [];
-      for (const c of list) {
+      for (const c of applicableChecks(s.plan, s.stage_idx)) {
+        const fp = c.scope ? scopeFp(snap, c.scope, shared) : null;
+        const v = s.verified.checks[c.id];
+        if (!full && c.scope && v && v.ok && v.fp === fp) {
+          results.push({ id: c.id, cmd: c.cmd, ok: true, code: 0, ms: 0, carried: true, from_round: v.round, tail: '' });
+          out(`SKIP ${c.id} (unchanged since round ${v.round})`);
+          continue;
+        }
         const t0 = Date.now();
         const r = spawnSync(c.cmd, { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
         const ok = r.status === 0;
         results.push({ id: c.id, cmd: c.cmd, ok, code: r.status ?? (r.error ? -1 : 1), ms: Date.now() - t0, tail: clip(`${r.stdout || ''}${r.stderr || ''}${r.error ? '\n' + r.error.message : ''}`.slice(-2000), 2000) });
+        s.verified.checks[c.id] = { fp, round: s.round, ok };
         out(`${ok ? 'PASS' : 'FAIL'} ${c.id} (${Date.now() - t0}ms)`);
         if (!ok) out(clip(`${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
       }
       const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
       writeJsonAtomic(artifactFile(project, 'checks', s.round), res);
+      const scope = { round: s.round, mode: s.mode || 'loop', full, full_reason: reason, total_files: total, changed_count: changed.length, changed_files: changed.slice(0, 60), dirty_criteria: dirtyC, carried_criteria: carriedC, criteria_fp };
+      writeJsonAtomic(path.join(forgeDir(project), `scope-${s.round}.json`), scope);
+      writeJsonAtomic(lastSnapFile, snapshotObject(snap));
+      // Fast path: nothing a verified criterion depends on changed, hard checks pass, and the previous verdict approved this same stage.
+      const lastE = s.last_eval;
+      let fast = false;
+      if (res.all_pass && !full && dirtyC.length === 0 && lastE?.approved && lastE.stage === s.plan.stages[s.stage_idx].id && s.last_axes) {
+        const base = { axes: s.last_axes, issues: [], synthetic: true, round: s.round, written_at: new Date().toISOString() };
+        writeJsonAtomic(artifactFile(project, 'verdict', s.round, 'supervisor'), { ...base, role: 'supervisor', verdict: 'approve', criteria: [], next_prompt: '', carried_all: true });
+        writeJsonAtomic(artifactFile(project, 'verdict', s.round, 'critic'), { ...base, role: 'critic', verdict: 'approve', blocking_issues: [], probes: ['synthetic: nothing any verified criterion depends on has changed'], carried_all: true });
+        fast = true;
+      }
+      saveState(project, s);
       out(`forge: checks ${res.all_pass ? 'ALL PASS' : 'FAILING'} (round ${s.round}). Recorded.`);
+      out(`scope: ${full ? `FULL verification (${reason})` : `incremental: ${changed.length} file(s) changed`}; re-verify ${dirtyC.length} criteria${dirtyC.length ? ` [${dirtyC.join(', ')}]` : ''}, carried over ${carriedC.length}${carriedC.length ? ` [${carriedC.join(', ')}]` : ''}.`);
+      if (fast) out('FAST PATH: nothing relevant changed and checks pass. Supervisor and critic verdicts were carried over automatically; you do NOT need to delegate to them. End your turn.');
+      else out(`Supervisor/critic: assess ONLY the dirty criteria (see .forge/scope-${s.round}.json); do not redo carried ones.`);
       break;
     }
     case 'verdict': {
@@ -134,6 +178,15 @@ async function main() {
       if (errs.length) die('forge: verdict INVALID:\n' + errs.map((e) => `  - ${e}`).join('\n'));
       v.role = role; v.round = s.round; v.written_at = new Date().toISOString();
       writeJsonAtomic(artifactFile(project, 'verdict', s.round, role), v);
+      if (role === 'supervisor') {
+        const sc = readJson(path.join(forgeDir(project), `scope-${s.round}.json`), { criteria_fp: {} });
+        s.verified ||= { checks: {}, criteria: {} };
+        for (const c of v.criteria) {
+          if (c.pass && c.observed) s.verified.criteria[c.id] = { fp: sc.criteria_fp?.[c.id], round: s.round, pass: true, observed: true, evidence: c.evidence, depends_on: c.depends_on || s.verified.criteria[c.id]?.depends_on, stage: s.plan.stages[s.stage_idx].id };
+          else delete s.verified.criteria[c.id]; // failed or unobserved: stays dirty
+        }
+        saveState(project, s);
+      }
       out(`forge: ${role} verdict recorded for round ${s.round}: ${v.verdict}`);
       break;
     }
@@ -162,6 +215,19 @@ async function main() {
       out('forge: loop aborted. State kept in .forge/. The Stop hook is now inactive.');
       break;
     }
+    case 'tweak': {
+      const s = need();
+      const change = pos.join(' ').trim();
+      if (!change) die('usage: forge tweak "<small change>"');
+      if (!s.plan) die('forge: no plan yet. Run /forge:build first; /forge:tweak edits a product that Forge already built.');
+      if (['running', 'delivering'].includes(s.status)) die('forge: a loop is still active. Let it finish or /forge:abort, then tweak.');
+      if (!s.verified || !Object.keys(s.verified.criteria || {}).length) out('forge: warning: no verified baseline recorded; everything will be treated as changed.');
+      for (const f of ['DELIVERY.md']) fs.rmSync(path.join(forgeDir(project), f), { force: true });
+      Object.assign(s, { status: 'running', mode: 'tweak', tweak: { prompt: change, started: Date.now() }, delivering_reason: null, stage_idx: s.plan.stages.length - 1, round: s.round + 1, created_at: Date.now(), caps: { max_rounds: 10, max_minutes: 45, max_blocks: 80 }, blocks: 0, idle_blocks: 0, last_fp: null, best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null });
+      saveState(project, s);
+      out(`forge: tweak mode. Change requested:\n${change}\n\nMake ONLY this change (no refactors, no extras). When done, end your turn: Forge re-verifies only what the change affects and carries everything else over.`);
+      break;
+    }
     case 'doctor': await doctor(); break;
     case 'exec': {
       // Run any command with the project-local tools on PATH: forge exec -- eslint .
@@ -187,7 +253,7 @@ async function main() {
     }
     case 'http': await httpCmd(pos, flags); break;
     default:
-      out('forge CLI: init | plan-set | start | checks | verdict | signoff | status | abort | doctor | exec | env | tool | shot | http');
+      out('forge CLI: init | plan-set | start | checks [--full] | verdict | signoff | tweak | status | abort | doctor | exec | env | tool | shot | http');
   }
 }
 
@@ -220,13 +286,26 @@ function validateVerdict(s, role, v) {
         }
       }
     }
+    const sc = readJson(path.join(forgeDir(project), `scope-${s.round}.json`), null);
+    if (!sc) errs.push('run `forge checks` first: it computes which criteria need re-verification');
+    else {
+      const given = new Set((v.criteria || []).map((c) => c.id));
+      for (const id of sc.dirty_criteria) if (!given.has(id)) errs.push(`criterion ${id} changed (or never passed) and must be assessed`);
+      const snap = (v.criteria || []).some((c) => c.depends_on) ? takeSnapshot(project, [...DEFAULT_IGNORE, ...(s.plan.ignore || [])]) : null;
+      for (const c of v.criteria || []) {
+        if (c.depends_on === undefined) continue;
+        if (!Array.isArray(c.depends_on) || !c.depends_on.length || !c.depends_on.every((x) => typeof x === 'string')) { errs.push(`criterion ${c.id}: depends_on must be a non-empty array of file globs`); continue; }
+        const m = matcher(c.depends_on);
+        if (![...snap.keys()].some(m)) errs.push(`criterion ${c.id}: depends_on matches no project file`);
+      }
+    }
     if (!Array.isArray(v.issues)) errs.push('issues array required (may be empty)');
     if (v.verdict === 'continue' && !(typeof v.next_prompt === 'string' && v.next_prompt.length > 10)) errs.push('next_prompt required when verdict is continue');
     if (v.needs_tool && !Array.isArray(v.needs_tool)) errs.push('needs_tool must be an array of {what, why}');
   } else {
     if (!Array.isArray(v.blocking_issues)) errs.push('blocking_issues array required');
     if (v.verdict === 'reject' && !(v.blocking_issues || []).length) errs.push('reject requires at least one blocking issue');
-    if (!Array.isArray(v.probes) || (v.verdict === 'approve' && v.probes.length < 3)) errs.push('probes: list the adversarial tests you actually ran (at least 3 to approve)');
+    { const sc = readJson(path.join(forgeDir(project), `scope-${s.round}.json`), null); const min = sc?.mode === 'tweak' ? 2 : 3; if (!Array.isArray(v.probes) || (v.verdict === 'approve' && v.probes.length < min)) errs.push(`probes: list the adversarial tests you actually ran (at least ${min} to approve)`); }
   }
   return errs;
 }
