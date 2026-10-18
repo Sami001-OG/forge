@@ -48,7 +48,9 @@ export function evaluate(state, art) {
   let score = 0;
   const mins = {};
   for (const a of plan.axes) {
-    const s = Math.min(Number(sup.axes?.[a.id] ?? 0), Number(cri.axes?.[a.id] ?? 0));
+    // If the critic was skipped (supervisor rejected), cap with the critic's last known score so progress stays comparable.
+    const cs = cri ? Number(cri.axes?.[a.id] ?? 0) : Number(state.last_critic_axes?.[a.id] ?? 10);
+    const s = Math.min(Number(sup.axes?.[a.id] ?? 0), cs);
     mins[a.id] = s;
     score += s;
     const need = a.critical ? bar : bar - 1;
@@ -58,9 +60,9 @@ export function evaluate(state, art) {
   score += passedCriteria;
 
   const supOk = sup.verdict === 'approve';
-  const criOk = cri.verdict === 'approve';
+  const criOk = !!cri && cri.verdict === 'approve';
   if (!supOk) problems.push('supervisor did not approve');
-  if (!criOk) problems.push('critic did not approve');
+  if (cri && !criOk) problems.push('critic did not approve');
 
   const approved = problems.length === 0 && supOk && criOk && chk.all_pass === true;
   return { approved, score, problems, failedAxes, bar, stage, axes: mins };
@@ -72,7 +74,7 @@ function feedback(state, ev, art) {
   out.push(`Round ${state.round} REJECTED at stage "${ev.stage.id}" (bar ${ev.bar}/10, score ${ev.score}).`);
   if (ev.problems.length) out.push('Problems:\n' + ev.problems.map((p) => `- ${p}`).join('\n'));
   if (sup.issues?.length) out.push('Supervisor issues:\n' + sup.issues.map((p) => `- ${p}`).join('\n'));
-  if (cri.blocking_issues?.length) out.push('Critic blocking issues:\n' + cri.blocking_issues.map((p) => `- ${p}`).join('\n'));
+  if (cri?.blocking_issues?.length) out.push('Critic blocking issues:\n' + cri.blocking_issues.map((p) => `- ${p}`).join('\n'));
   if (sup.next_prompt) out.push('Supervisor directive:\n' + sup.next_prompt);
   return out.join('\n\n');
 }
@@ -89,13 +91,38 @@ export function stageBrief(state, idx = state.stage_idx) {
   ].filter(Boolean).join('\n');
 }
 
-function protocol(state, art, cli) {
+const verifierModel = (st) => (st.opts?.verifier_model && st.stage_idx < st.plan.stages.length - 1 ? st.opts.verifier_model : null);
+
+// The critic is the expensive adversarial pass: it only runs when the supervisor is satisfied (or approval is likely).
+export function criticNeeded(st, art) {
+  if (art.supervisor) return art.supervisor.verdict === 'approve';
+  return st.stage_idx === st.plan.stages.length - 1 || !!st.last_sup_approved; // launch in parallel up front
+}
+
+function protocol(state, art, cli, wantCritic) {
   const r = state.round;
+  const sid = state.plan.stages[state.stage_idx].id;
+  const model = verifierModel(state);
+  const modelNote = model ? ` Use model "${model}" for this delegation (the Agent tool's model parameter, if it supports one).` : '';
+  const sup = `Delegate to the forge:supervisor subagent (Agent tool, subagent_type "forge:supervisor"). Prompt: "Verify round ${r}, stage ${sid}, per the forge protocol." It records its verdict itself.${modelNote}`;
+  const cri = `Delegate to the forge:critic subagent (Agent tool, subagent_type "forge:critic"). Prompt: "Attack round ${r}, stage ${sid}, per the forge protocol." It records its verdict itself.`;
   const steps = [];
   if (!art.checks) steps.push(`Run the hard checks: ${cli} checks`);
-  if (!art.supervisor) steps.push(`Delegate to the forge:supervisor subagent (Agent tool, subagent_type "forge:supervisor"). Prompt: "Verify round ${r}, stage ${state.plan.stages[state.stage_idx].id}, per the forge protocol." It records its verdict itself.`);
-  if (!art.critic) steps.push(`Delegate to the forge:critic subagent (Agent tool, subagent_type "forge:critic"). Prompt: "Attack round ${r}, stage ${state.plan.stages[state.stage_idx].id}, per the forge protocol." It records its verdict itself.`);
-  return steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  const needSup = !art.supervisor;
+  const needCri = wantCritic && !art.critic;
+  if (needSup && needCri) steps.push(`Launch BOTH subagents in ONE message (two Agent tool calls in the same response) so they run in parallel:\n   a) ${sup}\n   b) ${cri}`);
+  else if (needSup) steps.push(sup + ' (The critic is only needed if the supervisor approves.)');
+  else if (needCri) steps.push(cri + ' (The supervisor approved; the adversarial pass is now required.)');
+  return steps.map((x, i) => `${i + 1}. ${x}`).join('\n');
+}
+
+function roundTiming(st, art) {
+  const t = (x) => (x ? Date.parse(x) : null);
+  const cs = t(art.checks?.started_at), ce = t(art.checks?.ran_at);
+  const vs = [t(art.supervisor?.written_at), t(art.critic?.written_at)].filter(Boolean);
+  const ve = vs.length ? Math.max(...vs) : null;
+  const sec = (a, b) => (a != null && b != null ? Math.max(0, Math.round((b - a) / 1000)) : null);
+  return { round: st.round, stage: st.plan.stages[st.stage_idx].id, build_s: sec(st.round_started_at, cs), checks_s: sec(cs, ce), verify_s: sec(ce, ve), critic_ran: !!art.critic };
 }
 
 function deliveryMessage(state, cli) {
@@ -107,7 +134,7 @@ function deliveryMessage(state, cli) {
   if (state.mode === 'tweak') return [`[forge] ${why}`, `Now write .forge/DELIVERY.md for this tweak ("${clip(state.tweak?.prompt, 200)}"): what changed, how it was verified (what was re-verified vs carried over unchanged), and any gaps. Then end your turn with a two-line summary. Do not start new work.`].join('\n');
   return [
     `[forge] ${why}`,
-    'Now write .forge/DELIVERY.md with: (1) what was built, (2) exactly how to run/open it, (3) final rubric scores from the last verdicts, (4) honest known gaps (empty if truly none), (5) where deployed (if anything).',
+    'Now write .forge/DELIVERY.md with: (1) what was built, (2) exactly how to run/open it, (3) final rubric scores from the last verdicts, (4) honest known gaps (empty if truly none), (5) where deployed (if anything), (6) a short time breakdown (build / checks / verification) from `forge status`.',
     `Then end your turn with a short final message for the user containing the same essentials. Do not start new work. (Status: ${cli} status)`,
   ].join('\n');
 }
@@ -147,9 +174,10 @@ export function decide(input, art, nowMs, opts = {}) {
 
   const header = `[forge] Round ${st.round} · stage ${st.stage_idx + 1}/${st.plan.stages.length} "${st.plan.stages[st.stage_idx].id}"`;
 
-  // Verification protocol incomplete: ask for the missing steps (all at once).
-  if (!art.checks || !art.supervisor || !art.critic) {
-    const reason = `${header}\nBuild work for this round is not accepted until it is verified. Do these now, in order, then end your turn:\n${protocol(st, art, cli)}`;
+  // Verification protocol incomplete: ask for the missing steps (all at once). The critic only when it is needed.
+  const wantCritic = criticNeeded(st, art);
+  if (!art.checks || !art.supervisor || (wantCritic && !art.critic)) {
+    const reason = `${header}\nBuild work for this round is not accepted until it is verified. Do these now, in order, then end your turn:\n${protocol(st, art, cli, wantCritic)}`;
     return { allow: false, state: st, reason };
   }
 
@@ -157,6 +185,9 @@ export function decide(input, art, nowMs, opts = {}) {
   const plan = st.plan;
   st.last_axes = ev.axes;
   st.last_eval = { approved: ev.approved, round: st.round, stage: ev.stage.id };
+  st.last_sup_approved = art.supervisor.verdict === 'approve';
+  if (art.critic) st.last_critic_axes = art.critic.axes;
+  st.timings = [...(st.timings || []), roundTiming(st, art)].slice(-100);
   st.history = st.history || [];
   st.history.push({ round: st.round, stage: ev.stage.id, score: ev.score, approved: ev.approved });
 

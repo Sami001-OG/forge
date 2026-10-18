@@ -102,3 +102,19 @@ test('versions: beta-only packages are resolvable when explicitly allowed', () =
   assert.equal(pickVersion(times, now), null);
   assert.equal(pickVersion(times, now, 14, true), '0.50b1');
 });
+
+test('stage presets: lean and standard use fewer stages and validate', () => {
+  for (const [preset, ids] of [['lean', ['build', 'finish']], ['standard', ['build', 'harden', 'finish']], [undefined, ['skeleton', 'function', 'harden', 'polish', 'finish']]]) {
+    const raw = rawPlan();
+    if (preset) raw.stage_preset = preset;
+    const stageIds = ids;
+    raw.criteria = raw.criteria.map((c, i) => ({ ...c, stage: i === 0 ? stageIds[0] : stageIds.at(-1) }));
+    raw.checks = [{ id: 'smoke', cmd: 'node -e "process.exit(0)"', stage: stageIds[0] }];
+    const p = normalizePlan(raw);
+    assert.deepEqual(p.stages.map((x) => x.id), ids);
+    assert.deepEqual(validatePlan(p, tmpProject()), [], preset);
+  }
+  const bad = rawPlan();
+  bad.stage_preset = 'huge';
+  assert.match(validatePlan(normalizePlan(bad), tmpProject()).join('\n'), /stage_preset must be one of/);
+});

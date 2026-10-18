@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadCatalog, loadBundles, loadTargets } from './catalog.mjs';
-import { DEFAULT_STAGES, DEFAULT_BARS } from './state.mjs';
+import { DEFAULT_STAGES, DEFAULT_BARS, STAGE_PRESETS } from './state.mjs';
 import { forgeDir } from './util.mjs';
 import { DEFAULT_SHARED } from './fingerprint.mjs';
 
@@ -10,9 +10,10 @@ const ENVS = new Set(['local', 'remote', 'hybrid']);
 
 export function normalizePlan(plan, opts = {}) {
   const p = structuredClone(plan);
-  p.stages = Array.isArray(p.stages) && p.stages.length ? p.stages : structuredClone(DEFAULT_STAGES);
+  const preset = STAGE_PRESETS[p.stage_preset] || STAGE_PRESETS.full;
+  p.stages = Array.isArray(p.stages) && p.stages.length ? p.stages : structuredClone(preset.stages);
   for (const s of p.stages) s.name ||= s.id;
-  p.bars = { ...DEFAULT_BARS, ...(p.bars || {}) };
+  p.bars = { ...preset.bars, ...(p.bars || {}) };
   for (const s of p.stages) if (typeof p.bars[s.id] !== 'number') p.bars[s.id] = 9;
   if (typeof opts.bar === 'number') {
     const n = p.stages.length;
@@ -38,6 +39,7 @@ export function validatePlan(plan, project) {
   need(typeof plan.summary === 'string' && plan.summary.length > 20, 'summary: required string (>20 chars)');
   need(targets[plan.target_type], `target_type must be one of: ${Object.keys(targets).join(', ')}`);
   need(ENVS.has(plan.environment), 'environment must be local|remote|hybrid');
+  need(plan.stage_preset === undefined || STAGE_PRESETS[plan.stage_preset], `stage_preset must be one of: ${Object.keys(STAGE_PRESETS).join(', ')}`);
   need(Array.isArray(plan.axes) && plan.axes.length >= 3, 'axes: at least 3 rubric axes required');
   const axisIds = new Set();
   for (const a of plan.axes || []) {

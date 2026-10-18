@@ -14,6 +14,27 @@ export const DEFAULT_STAGES = [
 
 export const DEFAULT_BARS = { skeleton: 6, function: 8, harden: 9, polish: 9, finish: 9 };
 
+const stage = (id, name, goal, exit) => ({ id, name, goal, exit });
+// Simple products do not need five stages. The planner picks the lightest preset that is still safe.
+export const STAGE_PRESETS = {
+  lean: {
+    stages: [
+      stage('build', 'Build', 'A working product with every requested feature, tests, and the core path verified end to end.', ['All features implemented and working', 'Tests cover the core behavior', 'No placeholders or fake data paths']),
+      stage('finish', 'Finish', 'Edge cases, polish, docs, run instructions, and final verification.', ['Failure paths handled', 'README and run instructions are accurate', 'No dead code or debug leftovers']),
+    ],
+    bars: { build: 8, finish: 9 },
+  },
+  standard: {
+    stages: [
+      stage('build', 'Build', 'Architecture, scaffold, and every requested feature working, with tests.', ['Builds and runs', 'All features implemented with tests', 'No placeholders or fake data paths']),
+      stage('harden', 'Harden', 'Edge cases, failure modes, security, performance.', ['Invalid input and failure paths handled', 'No known security issues', 'Performance measured and acceptable']),
+      stage('finish', 'Finish', 'Polish, states, docs, run/deploy instructions, final verification.', ['Looks and feels best-in-class', 'README accurate', 'Final end-to-end verification passes']),
+    ],
+    bars: { build: 8, harden: 9, finish: 9 },
+  },
+  full: { stages: DEFAULT_STAGES, bars: DEFAULT_BARS },
+};
+
 export function loadState(project) {
   return readJson(statePath(project), null);
 }

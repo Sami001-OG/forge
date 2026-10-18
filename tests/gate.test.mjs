@@ -13,21 +13,61 @@ test('inactive states allow stop', () => {
   }
 });
 
-test('missing artifacts: asks for checks, supervisor, critic in one block', () => {
+test('missing artifacts: asks for checks and the supervisor; the critic waits until the supervisor approves', () => {
   const r = decide(makeState(), empty, NOW, { cli });
   assert.equal(r.allow, false);
   assert.match(r.reason, /checks/);
-  assert.match(r.reason, /forge:supervisor/);
-  assert.match(r.reason, /forge:critic/);
+  assert.match(r.reason, /subagent_type "forge:supervisor"/);
+  assert.doesNotMatch(r.reason, /subagent_type "forge:critic"/);
 });
 
-test('only the missing steps are requested', () => {
+test('supervisor approved but no critic yet: only the critic is requested', () => {
   const s = makeState();
   const a = fullArt(s);
   const r = decide(s, { ...a, critic: null }, NOW, { cli });
   assert.equal(r.allow, false);
-  assert.doesNotMatch(r.reason, /forge:supervisor/);
-  assert.match(r.reason, /forge:critic/);
+  assert.doesNotMatch(r.reason, /subagent_type "forge:supervisor"/);
+  assert.match(r.reason, /subagent_type "forge:critic"/);
+});
+
+test('supervisor rejected: the critic is skipped and the builder gets feedback immediately', () => {
+  const s = makeState({ last_critic_axes: { functionality: 9, correctness: 9, docs: 9 } });
+  const a = fullArt(s, { sup: { verdict: 'continue', score: 6, issues: ['empty state is broken'], next_prompt: 'Fix the empty state first.' } });
+  const r = decide(s, { ...a, critic: null }, NOW, { cli });
+  assert.equal(r.allow, false);
+  assert.doesNotMatch(r.reason, /forge:critic/);
+  assert.match(r.reason, /empty state is broken/);
+  assert.equal(r.state.round, 2);
+  assert.equal(r.state.last_sup_approved, false);
+});
+
+test('parallel launch when approval is likely (previous supervisor approved, or final stage)', () => {
+  for (const st of [makeState({ last_sup_approved: true }), makeState({ stage_idx: 4 })]) {
+    const r = decide(st, { ...empty, checks: { round: 1, results: [], all_pass: true } }, NOW, { cli });
+    assert.match(r.reason, /BOTH subagents in ONE message/);
+    assert.match(r.reason, /subagent_type "forge:supervisor"/);
+    assert.match(r.reason, /subagent_type "forge:critic"/);
+  }
+});
+
+test('verifier model is opt-in and never applies to the final stage', () => {
+  const early = decide(makeState({ opts: { bar: null, verifier_model: 'haiku' } }), empty, NOW, { cli });
+  assert.match(early.reason, /Use model "haiku"/);
+  const last = decide(makeState({ stage_idx: 4, opts: { bar: null, verifier_model: 'haiku' } }), empty, NOW, { cli });
+  assert.doesNotMatch(last.reason, /Use model/);
+  assert.doesNotMatch(decide(makeState(), empty, NOW, { cli }).reason, /Use model/);
+});
+
+test('round timing is recorded from artifact timestamps', () => {
+  const s = makeState({ round_started_at: Date.parse('2026-01-01T00:00:00Z') });
+  const a = fullArt(s);
+  a.checks.started_at = '2026-01-01T00:10:00Z'; a.checks.ran_at = '2026-01-01T00:12:00Z';
+  a.supervisor.written_at = '2026-01-01T00:20:00Z'; a.critic.written_at = '2026-01-01T00:25:00Z';
+  const t = decide(s, a, NOW, { cli }).state.timings.at(-1);
+  assert.equal(t.build_s, 600);
+  assert.equal(t.checks_s, 120);
+  assert.equal(t.verify_s, 780);
+  assert.equal(t.critic_ran, true);
 });
 
 test('approved stage advances to the next stage and bumps the round', () => {

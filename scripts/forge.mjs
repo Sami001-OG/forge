@@ -57,6 +57,17 @@ function statusText(s) {
   }
   L.push(`this round: checks ${art.checks ? (art.checks.all_pass ? 'PASS' : 'FAIL') : '-'} · supervisor ${art.supervisor?.verdict || '-'} · critic ${art.critic?.verdict || '-'}`);
   if (art.scope) L.push(`verification: ${art.scope.full ? `FULL (${art.scope.full_reason})` : `incremental, ${art.scope.changed_count} file(s) changed`} · re-verify ${art.scope.dirty_criteria.length}, carried ${art.scope.carried_criteria.length}${s.mode === 'tweak' ? ' · TWEAK mode' : ''}`);
+  const T = s.timings || [];
+  if (T.length) {
+    const sum = (k) => T.reduce((a, t) => a + (t[k] || 0), 0);
+    const fmt = (n) => (n >= 3600 ? `${Math.floor(n / 3600)}h ${Math.floor((n % 3600) / 60)}m` : n >= 60 ? `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, '0')}s` : `${n}s`);
+    const parts = [['build', sum('build_s')], ['checks', sum('checks_s')], ['verification', sum('verify_s')]];
+    const tot = parts.reduce((a, [, v]) => a + v, 0) || 1;
+    L.push(`time over ${T.length} round(s): ${parts.map(([n, v]) => `${n} ${fmt(v)} (${Math.round((v / tot) * 100)}%)`).join(' · ')}; critic ran in ${T.filter((t) => t.critic_ran).length}/${T.length}`);
+    const [slow, slowV] = [...parts].sort((a, b) => b[1] - a[1])[0];
+    if (slow === 'verification' && slowV / tot > 0.55) L.push('hint: verification dominates. Options: scope slow checks in the plan, --verifier-model for routine rounds, /forge:tweak for small edits.');
+  }
+  if (s.opts?.verifier_model) L.push(`routine verification model: ${s.opts.verifier_model} (final stage uses the session model)`);
   if (last) L.push(`last scored round: ${last.round} stage ${last.stage} score ${last.score} ${last.approved ? 'APPROVED' : 'rejected'}`);
   return L.join('\n');
 }
@@ -66,7 +77,7 @@ async function main() {
   switch (cmd) {
     case 'init': {
       const prompt = pos.join(' ').trim();
-      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N]');
+      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>]');
       const old = loadState(project);
       if (old && ['running', 'delivering'].includes(old.status) && !flags.force) die('forge: a loop is already active here. /forge:status to inspect, /forge:abort to cancel.');
       fs.mkdirSync(forgeDir(project), { recursive: true });
@@ -76,7 +87,7 @@ async function main() {
       if (flags['max-rounds']) caps.max_rounds = parseInt(flags['max-rounds'], 10);
       if (flags['max-minutes']) caps.max_minutes = parseInt(flags['max-minutes'], 10);
       const s = {
-        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null },
+        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null },
         created_at: Date.now(), caps, round: 1, stage_idx: 0, blocks: 0, idle_blocks: 0, last_fp: null,
         history: [], best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null, plan: null,
       };
@@ -102,12 +113,13 @@ async function main() {
     case 'start': {
       const s = need();
       if (s.status !== 'planning' || !s.plan) die('forge: start requires a plan in planning status');
-      s.status = 'running'; s.created_at = Date.now(); s.round = 1; s.stage_idx = 0; s.blocks = 0; s.idle_blocks = 0; s.last_fp = null;
+      s.status = 'running'; s.created_at = Date.now(); s.round_started_at = Date.now(); s.round = 1; s.stage_idx = 0; s.blocks = 0; s.idle_blocks = 0; s.last_fp = null;
       saveState(project, s);
       out(`forge: loop started.\n\nOriginal request:\n${s.prompt}\n\nBuilder notes:\n${s.plan.builder_notes || '(none)'}\n\n${stageBrief(s)}\n\nHard checks (run automatically later): ${s.plan.checks.map((c) => c.id).join(', ')}\nBuild stage 1 now. When you think it is done, just end your turn; the gate takes over.`);
       break;
     }
     case 'checks': {
+      const startedAt = Date.now();
       const s = need();
       if (s.status !== 'running') die(`forge: checks only run while the loop is running (status: ${s.status})`);
       const ignore = [...DEFAULT_IGNORE, ...(s.plan.ignore || [])];
@@ -146,7 +158,7 @@ async function main() {
         out(`${ok ? 'PASS' : 'FAIL'} ${c.id} (${Date.now() - t0}ms)`);
         if (!ok) out(clip(`${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
       }
-      const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
+      const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, started_at: new Date(startedAt).toISOString(), ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
       writeJsonAtomic(artifactFile(project, 'checks', s.round), res);
       const scope = { round: s.round, mode: s.mode || 'loop', full, full_reason: reason, total_files: total, changed_count: changed.length, changed_files: changed.slice(0, 60), dirty_criteria: dirtyC, carried_criteria: carriedC, criteria_fp };
       writeJsonAtomic(path.join(forgeDir(project), `scope-${s.round}.json`), scope);
@@ -223,7 +235,7 @@ async function main() {
       if (['running', 'delivering'].includes(s.status)) die('forge: a loop is still active. Let it finish or /forge:abort, then tweak.');
       if (!s.verified || !Object.keys(s.verified.criteria || {}).length) out('forge: warning: no verified baseline recorded; everything will be treated as changed.');
       for (const f of ['DELIVERY.md']) fs.rmSync(path.join(forgeDir(project), f), { force: true });
-      Object.assign(s, { status: 'running', mode: 'tweak', tweak: { prompt: change, started: Date.now() }, delivering_reason: null, stage_idx: s.plan.stages.length - 1, round: s.round + 1, created_at: Date.now(), caps: { max_rounds: 10, max_minutes: 45, max_blocks: 80 }, blocks: 0, idle_blocks: 0, last_fp: null, best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null });
+      Object.assign(s, { status: 'running', mode: 'tweak', tweak: { prompt: change, started: Date.now() }, delivering_reason: null, stage_idx: s.plan.stages.length - 1, round: s.round + 1, created_at: Date.now(), round_started_at: Date.now(), caps: { max_rounds: 10, max_minutes: 45, max_blocks: 80 }, blocks: 0, idle_blocks: 0, last_fp: null, best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null });
       saveState(project, s);
       out(`forge: tweak mode. Change requested:\n${change}\n\nMake ONLY this change (no refactors, no extras). When done, end your turn: Forge re-verifies only what the change affects and carries everything else over.`);
       break;

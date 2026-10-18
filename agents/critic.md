@@ -16,6 +16,8 @@ Forge installs tools project-locally in `.forge/tools`, which may not be on your
 3. For a `NEED` marked `[auto-installable]`, install it yourself: `forge tool install <id>`, then re-run. Only if install fails, or it is marked needs-approval/credentials, report it in `needs_tool`.
 4. Never mark a criterion unobserved before trying steps 2 and 3.
 
+You may run at the same time as the supervisor. Never wait for it and never read its verdict file.
+
 ## Incremental verification (do not redo what is already verified)
 Re-verifying everything every round wastes hours. Forge fingerprints the files each criterion depends on, so:
 - `forge status --json` shows this round's `scope`: `dirty_criteria` (changed or never passed: assess these) and `carried_criteria` (unchanged since they last passed: do NOT re-observe them; they are carried over automatically).

@@ -160,6 +160,14 @@ Forge fingerprints the files each acceptance criterion and hard check depends on
 
 `/forge:status` shows how many criteria were re-verified versus carried over each round.
 
+## Performance: least time, same bar
+
+- **Where the time goes:** `/forge:status` breaks time into build, checks, and verification, and flags when verification dominates.
+- **Critic only when it matters:** the adversarial critic runs only after the supervisor approves. A rejected round goes straight back to the builder. When approval is likely (previous round approved, or the final stage), supervisor and critic launch in parallel.
+- **Right-sized stages:** the planner picks `lean` (2 stages), `standard` (3), or `full` (5) based on how big and risky the product is.
+- **Cheaper routine verification (opt-in):** `--verifier-model <alias>` runs routine supervisor rounds on a faster model; the final stage always uses your session model.
+- **Incremental verification and `/forge:tweak`:** see above.
+
 ## Tools
 
 The catalog has **139 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
