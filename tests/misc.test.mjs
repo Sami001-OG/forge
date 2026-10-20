@@ -118,3 +118,24 @@ test('stage presets: lean and standard use fewer stages and validate', () => {
   bad.stage_preset = 'huge';
   assert.match(validatePlan(normalizePlan(bad), tmpProject()).join('\n'), /stage_preset must be one of/);
 });
+
+test('tool cache is shared per machine unless overridden', async () => {
+  const { toolsDir } = await import('../scripts/lib/util.mjs');
+  const saved = process.env.FORGE_TOOLS_DIR;
+  delete process.env.FORGE_TOOLS_DIR;
+  assert.match(toolsDir('/any/project').replace(/\\/g, '/'), /\.forge\/tools$/);
+  assert.ok(!toolsDir('/any/project').startsWith('/any/project'));
+  process.env.FORGE_TOOLS_DIR = '/tmp/custom-tools';
+  assert.equal(toolsDir('/any/project'), path.resolve('/tmp/custom-tools'));
+  if (saved === undefined) delete process.env.FORGE_TOOLS_DIR; else process.env.FORGE_TOOLS_DIR = saved;
+});
+
+test('check templates reference real catalog tools', () => {
+  const t = JSON.parse(fs.readFileSync(path.join(catalogDir, 'check-templates.json'), 'utf8')).templates;
+  const ids = new Set(loadCatalog().map((x) => x.id));
+  for (const [name, c] of Object.entries(t)) {
+    assert.ok(c.cmd, name);
+    assert.ok(c.tool === 'builtin' || ids.has(c.tool), `${name} -> ${c.tool}`);
+    if (c.changed_cmd) assert.ok(c.changed_cmd.includes('{changed}'), name);
+  }
+});

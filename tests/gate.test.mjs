@@ -220,3 +220,60 @@ test('reasons stay bounded', () => {
   const r = decide(s, a, NOW, { cli });
   assert.ok(r.reason.length <= 7000);
 });
+
+test('impact-selected checks must be confirmed by the full suite before approval', () => {
+  const s = makeState();
+  const a = fullArt(s);
+  a.checks.results = a.checks.results.map((r) => ({ ...r, impact: true }));
+  const r = decide(s, a, NOW, { cli });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /checks --confirm/);
+  assert.equal(r.state.stage_idx, 0, 'no advance before the confirm');
+  // After the confirm run the same round is re-evaluated: it advances, and history is not duplicated.
+  const b = fullArt(r.state);
+  const r2 = decide(r.state, b, NOW, { cli });
+  assert.equal(r2.state.stage_idx, 1);
+  assert.equal(r2.state.history.filter((h) => h.round === 1).length, 1);
+  assert.equal(r2.state.timings.filter((t) => t.round === 1).length, 1);
+});
+
+const marginalArt = (s) => fullArt(s, { sup: { score: 8, verdict: 'continue' }, cri: { score: 8, verdict: 'reject' } });
+
+test('plateau: marginal gaps and no gain end the final stage with a gap report', () => {
+  const s = makeState({ stage_idx: 4, round: 9, plateau: 1, best: { score: 26, round: 8, stage: 'finish' } });
+  const r = decide(s, marginalArt(s), NOW, { cli });
+  assert.equal(r.state.status, 'delivering');
+  assert.equal(r.state.delivering_reason, 'plateau');
+  assert.ok(r.state.gaps.length >= 1);
+  assert.match(r.reason, /DIMINISHING RETURNS/i);
+});
+
+test('plateau at an earlier stage advances and records the gaps for later stages', () => {
+  const s = makeState({ stage_idx: 2, round: 5, plateau: 1, best: { score: 26, round: 4, stage: 'harden' } });
+  const r = decide(s, marginalArt(s), NOW, { cli });
+  assert.equal(r.state.status, 'running');
+  assert.equal(r.state.stage_idx, 3);
+  assert.match(r.reason, /Diminishing returns/);
+  assert.equal(r.state.gaps[0].stage, 'harden');
+});
+
+test('plateau can be disabled and never overrides hard failures or blocking issues', () => {
+  const off = makeState({ stage_idx: 4, round: 9, plateau: 5, opts: { bar: null, plateau: 0 }, best: { score: 26, round: 8, stage: 'finish' } });
+  assert.equal(decide(off, marginalArt(off), NOW, { cli }).state.status, 'running');
+  const blocked = makeState({ stage_idx: 4, round: 9, plateau: 5, best: { score: 26, round: 8, stage: 'finish' } });
+  const a = fullArt(blocked, { sup: { score: 8, verdict: 'continue' }, cri: { score: 8, verdict: 'reject', blocking: ['crashes on empty input'] } });
+  assert.equal(decide(blocked, a, NOW, { cli }).state.status, 'running');
+  const hard = makeState({ stage_idx: 4, round: 9, plateau: 5, best: { score: 26, round: 8, stage: 'finish' } });
+  const h = marginalArt(hard);
+  h.checks = { round: 9, results: [{ id: 'smoke', ok: false, code: 1, tail: 'x' }], all_pass: false };
+  assert.equal(decide(hard, h, NOW, { cli }).state.status, 'running');
+});
+
+test('feedback is a numbered fix list with failing checks first', () => {
+  const s = makeState();
+  const a = fullArt(s, { sup: { score: 4, verdict: 'continue' }, cri: { score: 4, verdict: 'reject', blocking: ['x'] } });
+  a.checks = { round: 1, results: [{ id: 'smoke', ok: false, code: 1, tail: 'boom' }], all_pass: false };
+  const r = decide(s, a, NOW, { cli });
+  assert.match(r.reason, /Fix list, in priority order/);
+  assert.ok(r.reason.indexOf('check FAILED') < r.reason.indexOf('axis below bar'));
+});

@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 
 export const projectDir = (hint) => path.resolve(hint || process.env.CLAUDE_PROJECT_DIR || process.cwd());
 export const forgeDir = (p) => path.join(p, '.forge');
 export const statePath = (p) => path.join(forgeDir(p), 'state.json');
-export const toolsDir = (p) => path.join(forgeDir(p), 'tools');
+// Shared across projects (each tool is version-pinned and isolated), so a tool downloads once per machine.
+export const toolsDir = (p) => (process.env.FORGE_TOOLS_DIR ? path.resolve(process.env.FORGE_TOOLS_DIR) : path.join(os.homedir(), '.forge', 'tools'));
 export const posix = (p) => String(p).replace(/\\/g, '/');
 
 export function readJson(file, fallback = null) {

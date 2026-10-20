@@ -32,6 +32,7 @@ npm('lighthouse', 'lighthouse', 'lighthouse', 'Performance, a11y, SEO, best-prac
 npm('axe', '@axe-core/cli', 'axe', 'Accessibility violations scan (WCAG).', { domains: ['web', 'a11y'], bundles: ['web-pro'], observes: ['a11y-violations'], requires: ['playwright'] });
 npm('pa11y', 'pa11y', 'pa11y', 'Accessibility testing runner.', { tier: 1, domains: ['web', 'a11y'], bundles: ['web-pro'], observes: ['a11y-violations'], notes: 'Downloads its own Chromium.' });
 npm('pixelmatch', 'pixelmatch', null, 'Pixel-diff two screenshots (visual regression).', { domains: ['web', 'visual'], bundles: ['web-pro', 'game-pro'], observes: ['visual-diff'] });
+npm('pngjs', 'pngjs', null, 'PNG decode/encode (used by forge visual).', { domains: ['web', 'visual'], bundles: ['web-pro', 'game-pro'], observes: ['image-pixels'] });
 npm('size-limit', 'size-limit', 'size-limit', 'Enforce JS bundle size budgets.', { domains: ['web', 'perf'], bundles: ['web-pro'], observes: ['bundle-size'] });
 npm('source-map-explorer', 'source-map-explorer', 'source-map-explorer', 'Treemap of what is inside a JS bundle.', { domains: ['web', 'perf'], bundles: ['web-pro'], observes: ['bundle-composition'] });
 npm('webpack-bundle-analyzer', 'webpack-bundle-analyzer', 'webpack-bundle-analyzer', 'Interactive bundle size analysis.', { domains: ['web', 'perf'], bundles: ['web-pro'], observes: ['bundle-composition'] });

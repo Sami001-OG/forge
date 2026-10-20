@@ -14,6 +14,7 @@ const ids = args.includes('--ids') ? args[args.indexOf('--ids') + 1].split(',') 
 process.env.FORGE_CONTAINER = '1'; // tier-1 tools install automatically in a container
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-smoke-'));
 fs.mkdirSync(path.join(project, '.forge'), { recursive: true });
+process.env.FORGE_TOOLS_DIR = path.join(project, '.forge', 'tools'); // fresh installs, not the shared cache
 
 const list = loadCatalog(project).filter((t) => ['npm', 'pip'].includes(t.install.method) && t.tier <= 1 && (!only || t.install.method === only) && (!ids || ids.includes(t.id)));
 const results = [];

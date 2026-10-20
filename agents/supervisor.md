@@ -18,6 +18,8 @@ Forge installs tools project-locally in `.forge/tools`, which may not be on your
 
 You may run at the same time as the critic. Never wait for it and never read its verdict file.
 
+Machine-judged checks already ran; do not redo what a check proves. Use `forge visual <url> --name <n>` for visual regression and `forge assert-json <file> <path> ">=" <n>` to gate on a tool's JSON report.
+
 ## Incremental verification (do not redo what is already verified)
 Re-verifying everything every round wastes hours. Forge fingerprints the files each criterion depends on, so:
 - `forge status --json` shows this round's `scope`: `dirty_criteria` (changed or never passed: assess these) and `carried_criteria` (unchanged since they last passed: do NOT re-observe them; they are carried over automatically).

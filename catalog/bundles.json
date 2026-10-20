@@ -60,6 +60,7 @@
   "axe",
   "pa11y",
   "pixelmatch",
+  "pngjs",
   "size-limit",
   "source-map-explorer",
   "webpack-bundle-analyzer",
@@ -82,6 +83,7 @@
  "game-pro": [
   "playwright",
   "pixelmatch",
+  "pngjs",
   "xvfb",
   "xdotool",
   "scrot",

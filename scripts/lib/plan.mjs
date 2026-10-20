@@ -76,6 +76,8 @@ export function validatePlan(plan, project) {
     kids.add(k.id);
     need(typeof k.cmd === 'string' && k.cmd.trim(), `check ${k.id}: cmd required`);
     need(!k.stage || stageIds.has(k.stage), `check ${k.id}: unknown stage ${k.stage}`);
+    need(k.changed_cmd === undefined || (typeof k.changed_cmd === 'string' && k.changed_cmd.includes('{changed}')), `check ${k.id}: changed_cmd must be a string containing {changed}`);
+    need(k.changed_match === undefined || (Array.isArray(k.changed_match) && k.changed_match.every((x) => typeof x === 'string')), `check ${k.id}: changed_match must be an array of globs`);
     need(k.scope === undefined || (Array.isArray(k.scope) && k.scope.length && k.scope.every((x) => typeof x === 'string')), `check ${k.id}: scope must be a non-empty array of path globs (omit it to always run)`);
   }
   need((plan.checks || []).some((k) => !k.stage || k.stage === plan.stages[0].id), `at least one check must apply from the first stage (${plan.stages[0].id})`);

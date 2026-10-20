@@ -44,6 +44,7 @@ export function evaluate(state, art) {
     else passedCriteria++;
   }
 
+  const hard = problems.length > 0; // failing checks/criteria, as opposed to axes merely below the bar
   const failedAxes = [];
   let score = 0;
   const mins = {};
@@ -65,14 +66,18 @@ export function evaluate(state, art) {
   if (cri && !criOk) problems.push('critic did not approve');
 
   const approved = problems.length === 0 && supOk && criOk && chk.all_pass === true;
-  return { approved, score, problems, failedAxes, bar, stage, axes: mins };
+  return { approved, score, problems, failedAxes, bar, stage, axes: mins, hard };
 }
 
 function feedback(state, ev, art) {
   const { supervisor: sup, critic: cri } = art;
   const out = [];
   out.push(`Round ${state.round} REJECTED at stage "${ev.stage.id}" (bar ${ev.bar}/10, score ${ev.score}).`);
-  if (ev.problems.length) out.push('Problems:\n' + ev.problems.map((p) => `- ${p}`).join('\n'));
+  if (ev.problems.length) {
+    const prio = (p) => (/^check/.test(p) ? 0 : /^criterion (FAILED|NOT)/.test(p) ? 1 : /^criterion/.test(p) ? 2 : /^axis/.test(p) ? 4 : 3);
+    const sorted = [...ev.problems].sort((a, b) => prio(a) - prio(b));
+    out.push('Fix list, in priority order:\n' + sorted.map((p, i) => `${i + 1}. ${p}`).join('\n'));
+  }
   if (sup.issues?.length) out.push('Supervisor issues:\n' + sup.issues.map((p) => `- ${p}`).join('\n'));
   if (cri?.blocking_issues?.length) out.push('Critic blocking issues:\n' + cri.blocking_issues.map((p) => `- ${p}`).join('\n'));
   if (sup.next_prompt) out.push('Supervisor directive:\n' + sup.next_prompt);
@@ -130,10 +135,13 @@ function deliveryMessage(state, cli) {
     approved: 'APPROVED: supervisor, critic, hard checks, and your own sign-off all agree.',
     capped: 'STOPPED AT A CAP (rounds, time, or loop budget). The result is the best version so far, not an approved one.',
     stalled: 'STOPPED: the loop is no longer making progress.',
+    plateau: 'STOPPED AT DIMINISHING RETURNS: what remains is marginal and rounds stopped improving. Deliver with an honest gap report.',
   }[state.delivering_reason] || 'Finishing.';
   if (state.mode === 'tweak') return [`[forge] ${why}`, `Now write .forge/DELIVERY.md for this tweak ("${clip(state.tweak?.prompt, 200)}"): what changed, how it was verified (what was re-verified vs carried over unchanged), and any gaps. Then end your turn with a two-line summary. Do not start new work.`].join('\n');
+  const gaps = state.gaps?.length ? `Gaps accepted along the way (list them under known gaps): ${state.gaps.map((g) => `${g.stage}: ${g.items.join(', ')}`).join(' | ')}` : null;
   return [
     `[forge] ${why}`,
+    ...(gaps ? [gaps] : []),
     'Now write .forge/DELIVERY.md with: (1) what was built, (2) exactly how to run/open it, (3) final rubric scores from the last verdicts, (4) honest known gaps (empty if truly none), (5) where deployed (if anything), (6) a short time breakdown (build / checks / verification) from `forge status`.',
     `Then end your turn with a short final message for the user containing the same essentials. Do not start new work. (Status: ${cli} status)`,
   ].join('\n');
@@ -146,6 +154,19 @@ function toDelivering(st, reason, cli, prefix = '') {
   st.blocks = (st.blocks || 0) + 1;
   return { allow: false, state: st, reason: clip(`${prefix}${prefix ? '\n' : ''}${deliveryMessage(st, cli)}`, MAX_REASON) };
 }
+
+function advance(st, nowMs, headline) {
+  st.stage_idx += 1;
+  st.round += 1;
+  st.round_started_at = nowMs;
+  st.best = null;
+  st.plateau = 0;
+  st.stall = { rounds_without_gain: 0, strategy_changes: 0 };
+  return { allow: false, state: st, reason: `${headline}\n\n${stageBrief(st)}\n\nBuild this stage now. When you believe it is done, simply end your turn; verification runs automatically.` };
+}
+
+// Re-evaluating the same round (for example after a confirm run) must replace its entry, not duplicate it.
+const upsertRound = (list = [], entry) => [...list.filter((x) => x.round !== entry.round), entry].slice(-100);
 
 export function decide(input, art, nowMs, opts = {}) {
   const cli = opts.cli || 'forge';
@@ -187,9 +208,8 @@ export function decide(input, art, nowMs, opts = {}) {
   st.last_eval = { approved: ev.approved, round: st.round, stage: ev.stage.id };
   st.last_sup_approved = art.supervisor.verdict === 'approve';
   if (art.critic) st.last_critic_axes = art.critic.axes;
-  st.timings = [...(st.timings || []), roundTiming(st, art)].slice(-100);
-  st.history = st.history || [];
-  st.history.push({ round: st.round, stage: ev.stage.id, score: ev.score, approved: ev.approved });
+  st.timings = upsertRound(st.timings, roundTiming(st, art));
+  st.history = upsertRound(st.history, { round: st.round, stage: ev.stage.id, score: ev.score, approved: ev.approved });
 
   // Supervisor hit a blind spot: provision tools, then re-verify.
   if (art.supervisor.needs_tool?.length) {
@@ -200,15 +220,14 @@ export function decide(input, art, nowMs, opts = {}) {
   }
 
   if (ev.approved) {
-    const last = st.stage_idx === plan.stages.length - 1;
-    if (!last) {
-      st.stage_idx += 1;
-      st.round += 1;
-      st.round_started_at = nowMs;
-      st.best = null;
-      st.stall = { rounds_without_gain: 0, strategy_changes: 0 };
-      return { allow: false, state: st, reason: `[forge] Stage "${ev.stage.id}" PASSED (score ${ev.score}).\n\n${stageBrief(st)}\n\nBuild this stage now. When you believe it is done, simply end your turn; verification runs automatically.` };
+    // Checks that ran only the tests related to the change must be confirmed by the full suite once, before approval.
+    const impacted = (art.checks.results || []).filter((r) => r.impact).map((r) => r.id);
+    if (impacted.length) {
+      st.blocks -= 1; // a request, not a rejection
+      return { allow: false, state: st, reason: `${header}\nEverything passed using impact-selected checks. Before approval, confirm with the full suite: run  ${cli} checks --confirm  (re-runs: ${impacted.join(', ')}). Then end your turn.` };
     }
+    const last = st.stage_idx === plan.stages.length - 1;
+    if (!last) return advance(st, nowMs, `[forge] Stage "${ev.stage.id}" PASSED (score ${ev.score}).`);
     if (!art.signoff) {
       st.blocks -= 1; // a request, not a rejection
       return { allow: false, state: st, reason: `${header}\nFINAL GATE. Supervisor, critic, and hard checks approved. Before delivery, you must honestly sign off. Review the product against the original request: "${clip(st.prompt, 600)}".\nRun exactly one of:\n  ${cli} signoff complete "<one-line evidence>"\n  ${cli} signoff incomplete "<what is unfinished or faked>"\nIf anything is unfinished, say so; "incomplete" simply continues the loop.` };
@@ -219,6 +238,18 @@ export function decide(input, art, nowMs, opts = {}) {
       return { allow: false, state: st, reason: `[forge] You reported the work incomplete: ${clip(art.signoff.notes, 800)}\nFinish exactly that, then end your turn; verification restarts as round ${st.round}.` };
     }
     return toDelivering(st, 'approved', cli);
+  }
+
+  // Diminishing returns: only axes marginally below the bar, no hard failures, no reproducible blocking issues, and no real gain.
+  const plateauN = st.opts?.plateau ?? 2;
+  const gain = st.best ? ev.score - st.best.score : Infinity;
+  const marginal = !ev.hard && ev.failedAxes.length > 0 && ev.failedAxes.every((f) => f.need - f.score <= 1) && !(art.critic?.blocking_issues || []).length;
+  st.plateau = marginal && gain < 1 ? (st.plateau || 0) + 1 : 0;
+  if (plateauN > 0 && st.plateau >= plateauN) {
+    const gaps = ev.failedAxes.map((f) => `${f.id} ${f.score}/${f.need}`);
+    st.gaps = [...(st.gaps || []), { stage: ev.stage.id, items: gaps }];
+    if (st.stage_idx === plan.stages.length - 1) return toDelivering(st, 'plateau', cli, `[forge] diminishing returns: remaining gaps (${gaps.join(', ')}) are within one point of the bar and rounds are no longer improving.`);
+    return advance(st, nowMs, `[forge] Diminishing returns at stage "${ev.stage.id}": remaining gaps (${gaps.join(', ')}) are within one point of the bar and stopped improving. Moving on; they are recorded and must be fixed in later stages.`);
   }
 
   // Rejected: stall accounting, then feedback.

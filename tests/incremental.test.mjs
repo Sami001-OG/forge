@@ -47,7 +47,7 @@ test('gate: a carried criterion satisfies coverage only with a matching stored p
 
 test('end to end: a small edit re-verifies only the affected criterion; fast path; tweak mode', () => {
   const proj = tmpProject();
-  const env = { ...process.env, CLAUDE_PROJECT_DIR: proj };
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
   const forge = (args, input) => spawnSync(process.execPath, [FORGE, ...args], { cwd: proj, env, encoding: 'utf8', input });
   const readScope = (r) => JSON.parse(fs.readFileSync(path.join(proj, '.forge', `scope-${r}.json`), 'utf8'));
   const state = () => JSON.parse(fs.readFileSync(path.join(proj, '.forge', 'state.json'), 'utf8'));
@@ -135,4 +135,80 @@ test('end to end: a small edit re-verifies only the affected criterion; fast pat
   assert.equal(s2.stage_idx, s2.plan.stages.length - 1);
   assert.equal(s2.caps.max_minutes, 45);
   assert.equal(s2.round, s1.round + 1);
+});
+
+test('impact-selected checks: full run first, related-only after, one full confirm before approval; {forge} expands', () => {
+  const proj = tmpProject();
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
+  const forge = (args) => spawnSync(process.execPath, [FORGE, ...args], { cwd: proj, env, encoding: 'utf8' });
+  const state = () => JSON.parse(fs.readFileSync(path.join(proj, '.forge', 'state.json'), 'utf8'));
+  const checksFile = () => JSON.parse(fs.readFileSync(path.join(proj, '.forge', 'checks-1.json'), 'utf8'));
+  const ran = () => (fs.existsSync(path.join(proj, 'ran.log')) ? fs.readFileSync(path.join(proj, 'ran.log'), 'utf8').trim().split('\n') : []);
+  fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(proj, 'src', 'a.txt'), 'a1');
+  fs.writeFileSync(path.join(proj, 'rec.js'), "require('fs').appendFileSync('ran.log', process.argv.slice(2).join(' ') + '\\n');");
+  assert.equal(forge(['init', 'x', '--auto']).status, 0);
+  const plan = rawPlan();
+  plan.checks = [
+    { id: 'unit', cmd: 'node rec.js full', changed_cmd: 'node rec.js impact {changed}', changed_match: ['src/**'], stage: 'skeleton', timeout_s: 60 },
+    { id: 'fx', cmd: '{forge} env', stage: 'skeleton', timeout_s: 60 },
+  ];
+  fs.writeFileSync(path.join(proj, '.forge', 'plan.draft.json'), JSON.stringify(plan));
+  assert.equal(forge(['plan-set']).status, 0);
+  assert.equal(forge(['start']).status, 0);
+
+  let r = forge(['checks']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(ran(), ['full'], 'first run in a stage is the full suite');
+  assert.equal(checksFile().results.find((x) => x.id === 'fx').ok, true, '{forge} placeholder expands');
+
+  fs.writeFileSync(path.join(proj, 'src', 'a.txt'), 'a2');
+  r = forge(['checks']);
+  assert.equal(ran().length, 2);
+  assert.match(ran()[1], /^impact src\/a\.txt$/); // the shell strips the quotes around the path
+  assert.equal(checksFile().results.find((x) => x.id === 'unit').impact, true);
+
+  r = forge(['checks', '--confirm']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(ran().slice(2), ['full'], 'confirm runs the full suite once');
+  const unit = checksFile().results.find((x) => x.id === 'unit');
+  assert.equal(unit.impact, false);
+  assert.equal(unit.confirmed, true);
+  assert.equal(state().verified.checks.unit.full_stage, 'skeleton');
+
+  r = forge(['checks']); // nothing changed: carried, nothing runs
+  assert.equal(ran().length, 3);
+  assert.equal(checksFile().results.find((x) => x.id === 'unit').carried, true);
+});
+
+test('assert-json passes and fails on thresholds', () => {
+  const proj = tmpProject();
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
+  const run = (...a) => spawnSync(process.execPath, [FORGE, 'assert-json', ...a], { cwd: proj, env, encoding: 'utf8' });
+  fs.writeFileSync(path.join(proj, 'r.json'), JSON.stringify({ categories: { performance: { score: 0.93 } }, items: [{ n: 'x' }] }));
+  assert.equal(run('r.json', 'categories.performance.score', '>=', '0.9').status, 0);
+  assert.equal(run('r.json', 'categories.performance.score', '>=', '0.95').status, 1);
+  assert.equal(run('r.json', 'items.0.n', '==', 'x').status, 0);
+  assert.equal(run('r.json', 'missing.path', '>=', '1').status, 1);
+});
+
+test('visual compare detects pixel differences (skipped without network)', async (t) => {
+  const proj = tmpProject();
+  const tools = path.join(proj, '.forge', 'tools');
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: tools };
+  const inst = spawnSync(process.execPath, [FORGE, 'tool', 'install', 'pngjs', 'pixelmatch'], { cwd: proj, env, encoding: 'utf8', timeout: 120000 });
+  if (inst.status !== 0) return t.skip('could not install pngjs/pixelmatch (offline?)');
+  process.env.FORGE_TOOLS_DIR = tools;
+  const { loadImgLibs, comparePng } = await import('../scripts/lib/visual.mjs');
+  const { PNG, pixelmatch } = await loadImgLibs(proj);
+  const make = (w, h, dots = 0) => {
+    const png = new PNG({ width: w, height: h });
+    png.data.fill(255);
+    for (let i = 0; i < dots; i++) { png.data[i * 4] = 0; png.data[i * 4 + 1] = 0; png.data[i * 4 + 2] = 0; }
+    return PNG.sync.write(png);
+  };
+  assert.equal(comparePng(PNG, pixelmatch, make(10, 10), make(10, 10)).pct, 0);
+  const d = comparePng(PNG, pixelmatch, make(10, 10), make(10, 10, 5));
+  assert.ok(d.pct > 4 && d.pct < 6, `pct ${d.pct}`);
+  assert.equal(comparePng(PNG, pixelmatch, make(10, 10), make(12, 10)).sizeMismatch, true);
 });

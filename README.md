@@ -23,7 +23,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-D97757.svg">
   <img alt="Node 18+" src="https://img.shields.io/badge/node-%E2%89%A518-339933.svg">
-  <img alt="139 tools" src="https://img.shields.io/badge/verification%20tools-139-blue.svg">
+  <img alt="140 tools" src="https://img.shields.io/badge/verification%20tools-140-blue.svg">
   <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-0-brightgreen.svg">
   <a href="https://github.com/Sami001-OG/forge/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Sami001-OG/forge/actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -84,6 +84,8 @@ Forge plans, asks you one confirmation question (skip it with `--auto`), install
 | `--bar N` | 9 | Quality bar (out of 10) for the last three stages |
 | `--max-rounds N` | 40 | Hard cap on verify rounds |
 | `--max-minutes N` | 240 | Hard cap on wall-clock time |
+| `--verifier-model <alias>` | off | Cheaper model for routine verification rounds (final stage uses the session model) |
+| `--plateau N` | 2 | Stop after N rounds of marginal, non-improving scores (0 disables) |
 
 Run it in a project directory (an empty one is fine). For unattended runs, use a container or VM: the builder runs commands and installs tools.
 
@@ -166,22 +168,26 @@ Forge fingerprints the files each acceptance criterion and hard check depends on
 - **Critic only when it matters:** the adversarial critic runs only after the supervisor approves. A rejected round goes straight back to the builder. When approval is likely (previous round approved, or the final stage), supervisor and critic launch in parallel.
 - **Right-sized stages:** the planner picks `lean` (2 stages), `standard` (3), or `full` (5) based on how big and risky the product is.
 - **Cheaper routine verification (opt-in):** `--verifier-model <alias>` runs routine supervisor rounds on a faster model; the final stage always uses your session model.
+- **Full suite once per approval, not every round:** a check can declare a `changed_cmd` (for example `vitest related --run {changed}`). After the first full run in a stage, rounds run only the tests related to the change; one `forge checks --confirm` runs the full suite before anything is approved.
+- **Machine-judged first:** `catalog/check-templates.json` has ready checks (eslint, tsc, vitest, pytest, Lighthouse and axe budgets, Semgrep, gitleaks, bundle size). `forge visual <url> --name home` is pixel-diff regression against a stored baseline, and `forge assert-json <file> <path> ">=" <n>` turns any tool's JSON report into a pass/fail gate. The LLM only judges what code cannot.
+- **Diminishing returns:** if the only gaps left are within one point of the bar and rounds stop improving, Forge moves on (earlier stages, gaps recorded for later) or ships with an honest gap report (final stage). Rejection feedback is one numbered fix list, failing checks first.
+- **Shared tool cache:** tools install once per machine in `~/.forge/tools` (each tool isolated and version-pinned), not once per project.
 - **Incremental verification and `/forge:tweak`:** see above.
 
 ## Tools
 
-The catalog has **139 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
+The catalog has **140 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
 
 | Tier | Meaning |
 |---|---|
-| 0 | User-space npm/pip install into `.forge/tools` (automatic) |
+| 0 | User-space npm/pip install into `~/.forge/tools` (automatic) |
 | 1 | Heavy or container-oriented: automatic only inside a container, otherwise asks you |
 | 2 | System-level (apt, brew, Docker, curl installers): always asks you first |
 | 3 | Needs an account or token: skipped unless you set the env var. Forge never handles secrets |
 
-**How tools stay visible.** Each CLI tool installs in its own isolated prefix or venv (no dependency conflicts between tools) and is exposed through one shim directory, `.forge/tools/bin`. A SessionStart hook puts that directory on PATH for every command in the session, subagents included, and `forge exec -- <command>` always works as a fallback. The supervisor and critic run a preflight on every round and install any missing auto-installable tool themselves before declaring a blind spot.
+**How tools stay visible.** Each CLI tool installs in its own isolated prefix or venv (no dependency conflicts between tools) under the shared cache `~/.forge/tools` (override with `FORGE_TOOLS_DIR`) and is exposed through one shim directory, `~/.forge/tools/bin`. A SessionStart hook puts that directory on PATH for every command in the session, subagents included, and `forge exec -- <command>` always works as a fallback. The supervisor and critic run a preflight on every round and install any missing auto-installable tool themselves before declaring a blind spot.
 
-**Install safety.** npm/pip installs pick the newest stable release that is **at least 14 days old**, skip install scripts by default, run project-locally, and are logged to `.forge/tools.json`. Anything outside the catalog needs your approval.
+**Install safety.** npm/pip installs pick the newest stable release that is **at least 14 days old**, skip install scripts by default, stay in user space, and are logged per project in `.forge/tools.json`. Anything outside the catalog needs your approval.
 
 ```
 node <plugin>/scripts/forge.mjs tool list --bundle web-pro
@@ -207,11 +213,11 @@ commands/         /forge:build, status, abort, doctor
 agents/           planner, supervisor, critic, toolsmith
 hooks/hooks.json  Stop hook (the loop), PreToolUse guard, SessionStart PATH
 scripts/          forge.mjs CLI, gate.mjs, guard.mjs, env-hook.mjs, shot.mjs, lib/
-catalog/          tools.json (139 tools), bundles, target playbooks, plan example
+catalog/          tools.json (140 tools), bundles, target playbooks, check templates, plan example
 tests/            unit tests + a full loop driven through the real hook scripts
 ```
 
-In your project Forge writes only to `.forge/` (git-ignored): `state.json`, `rubric.md`, per-round `checks-N.json` and `verdict-N-*.json`, `evidence/` (screenshots, HTTP reports), `tools/`, and finally `DELIVERY.md`.
+In your project Forge writes only to `.forge/` (git-ignored): `state.json`, `rubric.md`, per-round `checks-N.json`, `scope-N.json` and `verdict-N-*.json`, `evidence/` (screenshots, HTTP reports), `baselines/` (visual regression), and finally `DELIVERY.md`. Tools live in `~/.forge/tools`.
 
 ## Troubleshooting
 

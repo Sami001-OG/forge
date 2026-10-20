@@ -13,7 +13,7 @@ const GATE = path.join(root, 'scripts', 'gate.mjs');
 const GUARD = path.join(root, 'scripts', 'guard.mjs');
 
 const proj = tmpProject();
-const env = { ...process.env, CLAUDE_PROJECT_DIR: proj };
+const env = { ...process.env, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
 const forge = (args, input) => spawnSync(process.execPath, [FORGE, ...args], { cwd: proj, env, encoding: 'utf8', input });
 const hook = (script, payload) => spawnSync(process.execPath, [script], { cwd: proj, env, encoding: 'utf8', input: JSON.stringify({ cwd: proj, session_id: 's1', ...payload }) });
 const stop = () => hook(GATE, { hook_event_name: 'Stop', stop_hook_active: false });

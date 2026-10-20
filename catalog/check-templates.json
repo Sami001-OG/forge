@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "note": "Machine-judged hard checks. Prefer these over asking the supervisor to eyeball something. {forge} expands to the forge CLI, {url} is the running app's URL (replace it in the plan), {changed} is the list of changed files (changed_cmd only).",
+  "templates": {
+    "eslint": { "cmd": "{forge} exec -- eslint . --max-warnings 0", "tool": "eslint", "stack": "js/ts" },
+    "typescript": { "cmd": "{forge} exec -- tsc --noEmit", "tool": "typescript", "stack": "ts" },
+    "vitest": { "cmd": "{forge} exec -- vitest run", "changed_cmd": "{forge} exec -- vitest related --run {changed}", "tool": "vitest", "stack": "js/ts", "note": "impact-selected after the first full run in a stage; confirmed once by the full suite before approval" },
+    "jest": { "cmd": "{forge} exec -- jest", "changed_cmd": "{forge} exec -- jest --findRelatedTests {changed}", "tool": "jest", "stack": "js/ts" },
+    "pytest": { "cmd": "{forge} exec -- python -m pytest -q", "tool": "pytest", "stack": "python" },
+    "ruff": { "cmd": "{forge} exec -- ruff check .", "tool": "ruff", "stack": "python" },
+    "mypy": { "cmd": "{forge} exec -- mypy .", "tool": "mypy", "stack": "python" },
+    "visual-home": { "cmd": "{forge} visual {url} --name home --threshold 0.5", "tool": "playwright", "scope": ["src/**", "public/**", "index.html"], "note": "first run records the baseline; use --update after an intentional visual change" },
+    "visual-home-mobile": { "cmd": "{forge} visual {url} --name home --mobile --threshold 0.5", "tool": "playwright", "scope": ["src/**", "public/**", "index.html"] },
+    "lighthouse-budget": { "cmd": "{forge} exec -- lighthouse {url} --quiet --output=json --output-path=.forge/evidence/lighthouse.json --chrome-flags=\"--headless=new --no-sandbox\" && {forge} assert-json .forge/evidence/lighthouse.json categories.performance.score \">=\" 0.9 && {forge} assert-json .forge/evidence/lighthouse.json categories.accessibility.score \">=\" 0.95", "tool": "lighthouse", "scope": ["src/**", "public/**"], "note": "slow: give it a scope so it is carried over when its files are unchanged" },
+    "axe": { "cmd": "{forge} exec -- axe {url} --exit", "tool": "axe", "scope": ["src/**", "public/**"] },
+    "bundle-size": { "cmd": "{forge} exec -- size-limit", "tool": "size-limit", "scope": ["src/**"] },
+    "semgrep": { "cmd": "{forge} exec -- semgrep scan --config auto --error --quiet", "tool": "semgrep", "scope": ["src/**"] },
+    "gitleaks": { "cmd": "{forge} exec -- gitleaks detect --no-banner", "tool": "gitleaks" },
+    "pip-audit": { "cmd": "{forge} exec -- pip-audit", "tool": "pip-audit", "scope": ["requirements*.txt", "pyproject.toml"] },
+    "npm-audit": { "cmd": "npm audit --audit-level=high", "tool": "builtin", "scope": ["package.json", "package-lock.json"] },
+    "links": { "cmd": "{forge} exec -- lychee --no-progress README.md docs", "tool": "lychee", "scope": ["**/*.md"] }
+  }
+}

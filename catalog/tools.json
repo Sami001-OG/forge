@@ -343,6 +343,30 @@
    "tier": 0,
    "domains": [
     "web",
+    "visual"
+   ],
+   "bundles": [
+    "web-pro",
+    "game-pro"
+   ],
+   "observes": [
+    "image-pixels"
+   ],
+   "controls": [],
+   "id": "pngjs",
+   "summary": "PNG decode/encode (used by forge visual).",
+   "install": {
+    "method": "npm",
+    "pkg": "pngjs",
+    "bin": null,
+    "post": []
+   },
+   "verify": "node -e \"require('fs').accessSync(require('path').join(process.env.NODE_PATH.split(require('path').delimiter)[0],'pngjs','package.json'))\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "web",
     "perf"
    ],
    "bundles": [

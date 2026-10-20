@@ -10,6 +10,7 @@ import { applicableChecks, applicableCriteria, stageBrief, barFor } from './lib/
 import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
 import { loadCatalog, loadBundles, loadTargets, search, pluginRoot } from './lib/catalog.mjs';
 import * as prov from './lib/provision.mjs';
+import { loadImgLibs, comparePng } from './lib/visual.mjs';
 import { takeSnapshot, scopeFp, changedFiles, hitsShared, snapshotObject, matcher, DEFAULT_IGNORE, DEFAULT_SHARED } from './lib/fingerprint.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,7 +25,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const k = a.slice(2);
       const n = argv[i + 1];
-      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
+      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed', 'confirm', 'update'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
     } else pos.push(a);
   }
   return { pos, flags };
@@ -33,6 +34,7 @@ const die = (m, code = 1) => { process.stderr.write(m + '\n'); process.exit(code
 const out = (m) => process.stdout.write(m + '\n');
 const need = () => { const s = loadState(project); if (!s) die('forge: no active loop in this project. Start one with /forge:build'); return s; };
 
+const expand = (c) => String(c).replaceAll('{forge}', `node "${posix(path.join(here, 'forge.mjs'))}"`);
 const bar = (n, w = 10) => '▮'.repeat(Math.max(0, Math.min(w, Math.round(n)))) + '▯'.repeat(w - Math.max(0, Math.min(w, Math.round(n))));
 
 function statusText(s) {
@@ -77,7 +79,7 @@ async function main() {
   switch (cmd) {
     case 'init': {
       const prompt = pos.join(' ').trim();
-      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>]');
+      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>] [--plateau N]');
       const old = loadState(project);
       if (old && ['running', 'delivering'].includes(old.status) && !flags.force) die('forge: a loop is already active here. /forge:status to inspect, /forge:abort to cancel.');
       fs.mkdirSync(forgeDir(project), { recursive: true });
@@ -87,7 +89,7 @@ async function main() {
       if (flags['max-rounds']) caps.max_rounds = parseInt(flags['max-rounds'], 10);
       if (flags['max-minutes']) caps.max_minutes = parseInt(flags['max-minutes'], 10);
       const s = {
-        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null },
+        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null, plateau: Number.isInteger(Number(flags.plateau)) && flags.plateau !== undefined ? Number(flags.plateau) : 2 },
         created_at: Date.now(), caps, round: 1, stage_idx: 0, blocks: 0, idle_blocks: 0, last_fp: null,
         history: [], best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null, plan: null,
       };
@@ -122,6 +124,31 @@ async function main() {
       const startedAt = Date.now();
       const s = need();
       if (s.status !== 'running') die(`forge: checks only run while the loop is running (status: ${s.status})`);
+      const stageId = s.plan.stages[s.stage_idx].id;
+      if (flags.confirm) {
+        // Run the full suite for checks that only ran the tests related to the change.
+        const file = artifactFile(project, 'checks', s.round);
+        const cur = readJson(file, null);
+        if (!cur) die('forge: run `forge checks` first');
+        const imp = cur.results.filter((r) => r.impact);
+        if (!imp.length) { out('forge: nothing to confirm (no impact-selected checks this round).'); break; }
+        s.verified ||= { checks: {}, criteria: {} };
+        for (const r of imp) {
+          const c = s.plan.checks.find((x) => x.id === r.id);
+          const t0 = Date.now();
+          const rr = spawnSync(expand(c.cmd), { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
+          const ok = rr.status === 0;
+          Object.assign(r, { ok, code: rr.status ?? 1, ms: Date.now() - t0, impact: false, confirmed: true, tail: clip(`${rr.stdout || ''}${rr.stderr || ''}`.slice(-2000), 2000) });
+          s.verified.checks[r.id] = { ...(s.verified.checks[r.id] || {}), ok, round: s.round, full_stage: ok ? stageId : undefined };
+          out(`${ok ? 'PASS' : 'FAIL'} ${r.id} full suite (${r.ms}ms)`);
+          if (!ok) out(clip(`${rr.stdout || ''}${rr.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
+        }
+        cur.all_pass = cur.results.every((r) => r.ok);
+        writeJsonAtomic(file, cur);
+        saveState(project, s);
+        out(`forge: confirm ${cur.all_pass ? 'PASSED' : 'FAILED'}. End your turn.`);
+        break;
+      }
       const ignore = [...DEFAULT_IGNORE, ...(s.plan.ignore || [])];
       const shared = s.plan.shared?.length ? s.plan.shared : DEFAULT_SHARED;
       const snap = takeSnapshot(project, ignore);
@@ -150,12 +177,25 @@ async function main() {
           out(`SKIP ${c.id} (unchanged since round ${v.round})`);
           continue;
         }
+        // Impact selection: after the first full run in a stage, run only tests related to the changed files.
+        let cmd = c.cmd, impact = false, nfiles = 0;
+        if (c.changed_cmd && !full && prev && v?.ok && v.full_stage === stageId) {
+          const m = matcher(c.changed_match?.length ? c.changed_match : ['**']);
+          const files = changed.filter((f) => m(f) && fs.existsSync(path.join(project, f)));
+          if (files.length === 0) {
+            results.push({ id: c.id, cmd: c.cmd, ok: true, code: 0, ms: 0, carried: true, from_round: v.round, tail: '' });
+            out(`SKIP ${c.id} (no relevant files changed)`);
+            continue;
+          }
+          cmd = c.changed_cmd.replace('{changed}', files.map((f) => JSON.stringify(f)).join(' '));
+          impact = true; nfiles = files.length;
+        }
         const t0 = Date.now();
-        const r = spawnSync(c.cmd, { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
+        const r = spawnSync(expand(cmd), { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
         const ok = r.status === 0;
-        results.push({ id: c.id, cmd: c.cmd, ok, code: r.status ?? (r.error ? -1 : 1), ms: Date.now() - t0, tail: clip(`${r.stdout || ''}${r.stderr || ''}${r.error ? '\n' + r.error.message : ''}`.slice(-2000), 2000) });
-        s.verified.checks[c.id] = { fp, round: s.round, ok };
-        out(`${ok ? 'PASS' : 'FAIL'} ${c.id} (${Date.now() - t0}ms)`);
+        results.push({ id: c.id, cmd, ok, impact, files: nfiles, code: r.status ?? (r.error ? -1 : 1), ms: Date.now() - t0, tail: clip(`${r.stdout || ''}${r.stderr || ''}${r.error ? '\n' + r.error.message : ''}`.slice(-2000), 2000) });
+        s.verified.checks[c.id] = { fp, round: s.round, ok, full_stage: impact ? v.full_stage : ok ? stageId : undefined };
+        out(`${ok ? 'PASS' : 'FAIL'} ${c.id}${impact ? ` [impact: ${nfiles} file(s)]` : ''} (${Date.now() - t0}ms)`);
         if (!ok) out(clip(`${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
       }
       const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, started_at: new Date(startedAt).toISOString(), ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
@@ -240,6 +280,50 @@ async function main() {
       out(`forge: tweak mode. Change requested:\n${change}\n\nMake ONLY this change (no refactors, no extras). When done, end your turn: Forge re-verifies only what the change affects and carries everything else over.`);
       break;
     }
+    case 'assert-json': {
+      const [file, jp, op, val] = pos;
+      if (!file || !jp || !op || val === undefined) die('usage: forge assert-json <file.json> <dot.path> <op: >= <= > < == !=> <value>');
+      const data = readJson(file, undefined);
+      if (data === undefined) die(`forge: cannot read JSON from ${file}`);
+      const got = jp.split('.').reduce((o, k) => (o == null ? undefined : o[k]), data);
+      const rhs = Number.isNaN(Number(val)) ? val : Number(val);
+      const lhs = typeof rhs === 'number' ? Number(got) : got;
+      const ops = { '>=': (a, b) => a >= b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '<': (a, b) => a < b, '==': (a, b) => a === b, '!=': (a, b) => a !== b };
+      if (!ops[op]) die(`forge: unknown operator ${op}`);
+      const pass = got !== undefined && ops[op](lhs, rhs);
+      out(`${pass ? 'PASS' : 'FAIL'} ${jp} = ${got} (${op} ${val})`);
+      process.exit(pass ? 0 : 1);
+      break;
+    }
+    case 'visual': {
+      // Machine-judged visual regression: screenshot vs a stored baseline. First run (or --update) records the baseline.
+      const url = pos[0];
+      if (!url) die('usage: forge visual <url> --name <name> [--threshold <percent, default 0.5>] [--mobile] [--full] [--update]');
+      const st = loadState(project);
+      for (const id of ['pngjs', 'pixelmatch']) { const r = await prov.install(project, id); if (!r.ok) die(`forge: cannot provision ${id}: ${r.reason}`); }
+      const name = String(flags.name || 'page') + (flags.mobile ? '-mobile' : '');
+      const dir = path.join(forgeDir(project), 'evidence');
+      fs.mkdirSync(dir, { recursive: true });
+      const cur = path.join(dir, `r${st?.round ?? 0}-visual-${name}.png`);
+      const sh = spawnSync(process.execPath, [path.join(here, 'shot.mjs'), url, '--out', cur, ...(flags.mobile ? ['--mobile'] : []), ...(flags.full ? ['--full'] : [])], { stdio: 'inherit', env: toolEnv(project) });
+      if (sh.status !== 0) die('forge visual: screenshot failed', sh.status ?? 1);
+      const base = path.join(forgeDir(project), 'baselines', `${name}.png`);
+      if (!fs.existsSync(base) || flags.update) {
+        fs.mkdirSync(path.dirname(base), { recursive: true });
+        fs.copyFileSync(cur, base);
+        out(`visual: baseline ${flags.update ? 'updated' : 'created'}: ${posix(path.relative(project, base))}`);
+        process.exit(0);
+      }
+      const { PNG, pixelmatch } = await loadImgLibs(project);
+      const r = comparePng(PNG, pixelmatch, fs.readFileSync(base), fs.readFileSync(cur));
+      const limit = flags.threshold !== undefined ? Number(flags.threshold) : 0.5;
+      if (r.diffPng) fs.writeFileSync(cur.replace(/\.png$/, '-diff.png'), r.diffPng);
+      const pass = !r.sizeMismatch && r.pct <= limit;
+      out(`${pass ? 'PASS' : 'FAIL'} visual ${name}: ${r.sizeMismatch ? 'size changed' : `${r.pct.toFixed(3)}% pixels differ (limit ${limit}%)`}`);
+      out(`evidence: file:${posix(path.relative(project, cur))}${r.diffPng ? ` diff: file:${posix(path.relative(project, cur.replace(/\.png$/, '-diff.png')))}` : ''}`);
+      process.exit(pass ? 0 : 1);
+      break;
+    }
     case 'doctor': await doctor(); break;
     case 'exec': {
       // Run any command with the project-local tools on PATH: forge exec -- eslint .
@@ -265,7 +349,7 @@ async function main() {
     }
     case 'http': await httpCmd(pos, flags); break;
     default:
-      out('forge CLI: init | plan-set | start | checks [--full] | verdict | signoff | tweak | status | abort | doctor | exec | env | tool | shot | http');
+      out('forge CLI: init | plan-set | start | checks [--full] | verdict | signoff | tweak | status | abort | doctor | exec | env | tool | shot | http | visual | assert-json');
   }
 }
 
@@ -336,6 +420,7 @@ async function doctor() {
     const r = sh(c);
     L.push(`${r.status === 0 ? 'ok  ' : 'warn'} ${n}${r.status === 0 ? ' ' + (r.stdout || r.stderr).trim() : ' not found (optional; some tools need it)'}`);
   }
+  L.push(`info tool cache: ${toolsDir(project)} (shared across projects)`);
   L.push(`info container: ${prov.inContainer() ? 'yes (tier-1 tools auto-install)' : 'no (tier-1 tools need approval)'}`);
   try { fs.mkdirSync(forgeDir(project), { recursive: true }); fs.accessSync(forgeDir(project), fs.constants.W_OK); L.push('ok   .forge/ writable'); } catch { L.push('FAIL .forge/ not writable'); bad = true; }
   const tools = loadCatalog(project);
