@@ -26,6 +26,10 @@ Re-verifying everything every round wastes hours. Forge fingerprints the files e
 - If `scope.full` is true (first verification, a shared config changed, or most files changed), do a full pass.
 - If `scope.mode` is `tweak`: this is a small change to a finished product. Assess only the dirty criteria, run at most a couple of focused probes on the changed surface, and finish fast.
 
+## UI/UX products (when the plan has `design_stack`)
+- **Break the UI:** use Emil Kowalski's `break-ui` approach: worst-case data (very long names, unbreakable strings, one-letter names, missing fields, huge counts, zero items, RTL text), tiny and huge viewports, 200% zoom, keyboard-only navigation, `prefers-reduced-motion`, dark mode, slow network.
+- Run `forge uiaudit <url> --strict` and `forge exec -- impeccable detect src/`; read the screenshots yourself. Anything generic, template-like, or visibly unpolished is a blocking issue under `originality` or `ux_polish`.
+
 ## Procedure
 1. `forge status --json` for the plan, stage, bar, and axes. Read `.forge/rubric.md`.
 2. Attack the surface that changed (the dirty criteria in `scope`, plus whatever they touch). Do not repeat probes already listed in earlier `.forge/verdict-*-critic.json` files unless the code they exercise changed. At minimum, actually run at least three probes (two in tweak mode) that a happy-path tester would not: malformed/empty/huge input, wrong order of operations, double submit, interrupted flow, restart/crash recovery, concurrency, slow or failing dependencies, mobile viewport and small screens, keyboard-only use, expired/invalid auth, injection strings, offline. Pick what fits this product. Use scanners if installed (`forge tool list --installed`).

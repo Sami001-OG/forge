@@ -72,7 +72,8 @@
    "bundles": [
     "web-pro",
     "game-pro",
-    "docs-pro"
+    "docs-pro",
+    "ui-design"
    ],
    "observes": [
     "screenshot",
@@ -244,7 +245,8 @@
     "perf"
    ],
    "bundles": [
-    "web-pro"
+    "web-pro",
+    "ui-design"
    ],
    "observes": [
     "perf-score",
@@ -272,7 +274,8 @@
     "a11y"
    ],
    "bundles": [
-    "web-pro"
+    "web-pro",
+    "ui-design"
    ],
    "observes": [
     "a11y-violations"
@@ -323,7 +326,8 @@
    ],
    "bundles": [
     "web-pro",
-    "game-pro"
+    "game-pro",
+    "ui-design"
    ],
    "observes": [
     "visual-diff"
@@ -347,7 +351,8 @@
    ],
    "bundles": [
     "web-pro",
-    "game-pro"
+    "game-pro",
+    "ui-design"
    ],
    "observes": [
     "image-pixels"
@@ -620,7 +625,8 @@
     "assets"
    ],
    "bundles": [
-    "web-pro"
+    "web-pro",
+    "ui-design"
    ],
    "observes": [],
    "controls": [
@@ -644,7 +650,8 @@
    ],
    "bundles": [
     "web-pro",
-    "media-pro"
+    "media-pro",
+    "ui-design"
    ],
    "observes": [],
    "controls": [
@@ -3333,6 +3340,112 @@
     "manual": "https://godotengine.org/download"
    },
    "verify": "godot --version"
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-emil",
+   "summary": "Emil Kowalski design-engineering skills: motion craft, unseen details, animation review, break-the-UI (MIT).",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/emilkowalski/skill --skill emil-design-eng --skill review-animations --skill animation-performance --skill break-ui --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/emilkowalski/skill --skill emil-design-eng --skill review-animations --skill animation-performance --skill break-ui --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/emilkowalski/skill --skill emil-design-eng --skill review-animations --skill animation-performance --skill break-ui --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/emilkowalski/skill"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['emil-design-eng'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-taste",
+   "summary": "Taste Skill: art direction, anti-slop house style, pre-flight matrix, look-and-fix loop (MIT). Its inspector needs Node 22+ and Chrome/Chromium.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/Leonxlnx/taste-skill --skill design-taste-frontend --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/Leonxlnx/taste-skill --skill design-taste-frontend --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/Leonxlnx/taste-skill --skill design-taste-frontend --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/Leonxlnx/taste-skill"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['design-taste-frontend'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-impeccable",
+   "summary": "Impeccable (Apache-2.0): design vocabulary and commands (shape, craft, audit, critique, polish). Needs network access to impeccable.style on install.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y impeccable install -y --providers=claude --scope=user",
+     "darwin": "npx -y impeccable install -y --providers=claude --scope=user",
+     "win32": "npx -y impeccable install -y --providers=claude --scope=user"
+    },
+    "manual": "https://github.com/pbakaus/impeccable"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['impeccable'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 0,
+   "domains": [
+    "design",
+    "ui",
+    "quality"
+   ],
+   "bundles": [
+    "ui-design",
+    "web-pro"
+   ],
+   "observes": [
+    "ui-antipatterns"
+   ],
+   "controls": [],
+   "id": "impeccable-detect",
+   "summary": "Deterministic UI anti-pattern detector, 61 rules incl. AI-generated UI tells and accessibility. Exit code 2 on findings. Downloads its engine on first run.",
+   "install": {
+    "method": "npm",
+    "pkg": "impeccable",
+    "bin": "impeccable",
+    "post": []
+   },
+   "verify": "@exists"
   }
  ]
 }

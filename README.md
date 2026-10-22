@@ -23,7 +23,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-D97757.svg">
   <img alt="Node 18+" src="https://img.shields.io/badge/node-%E2%89%A518-339933.svg">
-  <img alt="140 tools" src="https://img.shields.io/badge/verification%20tools-140-blue.svg">
+  <img alt="144 tools" src="https://img.shields.io/badge/verification%20tools-144-blue.svg">
   <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-0-brightgreen.svg">
   <a href="https://github.com/Sami001-OG/forge/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Sami001-OG/forge/actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -73,6 +73,7 @@ Forge plans, asks you one confirmation question (skip it with `--auto`), install
 | Command | What it does |
 |---|---|
 | `/forge:build <what to build> [flags]` | Start a loop |
+| `/forge:ui <what to build>` | Same loop for UI/UX work, with the design stack and Playwright UI audits |
 | `/forge:tweak <small change>` | Change something Forge already built; re-verifies only what the change affects |
 | `/forge:status` | Stage, round, scores per axis, what is pending |
 | `/forge:abort` | Stop the loop (state stays in `.forge/`) |
@@ -80,6 +81,7 @@ Forge plans, asks you one confirmation question (skip it with `--auto`), install
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--ui` | off | UI/UX mode (always on for `/forge:ui`): design stack plus UI audits |
 | `--auto` | off | No confirmation questions; installs only tier-0 tools |
 | `--bar N` | 9 | Quality bar (out of 10) for the last three stages |
 | `--max-rounds N` | 40 | Hard cap on verify rounds |
@@ -174,9 +176,29 @@ Forge fingerprints the files each acceptance criterion and hard check depends on
 - **Shared tool cache:** tools install once per machine in `~/.forge/tools` (each tool isolated and version-pinned), not once per project.
 - **Incremental verification and `/forge:tweak`:** see above.
 
+## UI/UX mode (`/forge:ui`)
+
+For websites, apps and dashboards, Forge adds a design stack and a deterministic UI audit on top of the normal loop:
+
+| Part | What it does |
+|---|---|
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skill) (MIT) | Motion craft and the unseen details; animation review, animation performance, and `break-ui` (worst-case data) |
+| [Taste Skill](https://github.com/Leonxlnx/taste-skill) (MIT) | Art direction, anti-slop house style, pre-flight checklist. Its inspector needs Node 22+ and Chrome/Chromium |
+| [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0) | Design vocabulary and commands (shape, craft, audit, critique, polish) plus a deterministic detector: `impeccable detect` runs 61 rules (AI-UI tells, accessibility, quality) and exits 2 on findings |
+| Playwright + `forge uiaudit <url>` | Screenshots at 375/768/1440, dark mode, reduced motion; checks overflow, missing viewport meta and lang, tap targets, tiny text, accessible names, focus visibility, layout shift, `transition: all`, slow UI transitions, weak easing, missing reduced-motion rules |
+| axe, Lighthouse, visual regression | Accessibility, performance budgets, and pixel-diff baselines (`ui-design` tool bundle) |
+
+Forge does not bundle or copy these skills. `forge design install` runs each project's own installer (`npx skills add ...`, `npx impeccable install`) after you approve it, and they land in `~/.claude/skills`. They run with full agent permissions, so review them first. The builder reads them before writing UI, the supervisor and critic use them as review lenses, and `uiaudit` plus `impeccable detect` are hard checks, so taste is judged by code first and by the LLM second.
+
+```
+forge design status      # which skills are installed
+forge design path        # SKILL.md paths the agents read
+forge uiaudit http://localhost:3000 --pages /,/pricing --strict
+```
+
 ## Tools
 
-The catalog has **140 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
+The catalog has **144 tools in 12 bundles** (core, web, API, security, systems, mobile, game, media, data, bots, devops, docs): Playwright, Lighthouse, axe, k6, Semgrep, Trivy, valgrind, ffmpeg, adb, and more. Only what the plan needs gets installed.
 
 | Tier | Meaning |
 |---|---|
@@ -209,11 +231,11 @@ node <plugin>/scripts/forge.mjs shot http://localhost:3000 --mobile
 
 ```
 .claude-plugin/   plugin.json, marketplace.json
-commands/         /forge:build, status, abort, doctor
+commands/         /forge:build, ui, tweak, status, abort, doctor
 agents/           planner, supervisor, critic, toolsmith
 hooks/hooks.json  Stop hook (the loop), PreToolUse guard, SessionStart PATH
 scripts/          forge.mjs CLI, gate.mjs, guard.mjs, env-hook.mjs, shot.mjs, lib/
-catalog/          tools.json (140 tools), bundles, target playbooks, check templates, plan example
+catalog/          tools.json (144 tools), bundles, target playbooks, check templates, plan example
 tests/            unit tests + a full loop driven through the real hook scripts
 ```
 

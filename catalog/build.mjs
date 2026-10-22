@@ -185,6 +185,15 @@ npm('changesets', '@changesets/cli', 'changeset', 'Versioning and changelogs for
 // ---------- game engines ----------
 sys('godot', 'godot', 'Godot engine (headless export/test).', { darwin: 'brew install --cask godot' }, { domains: ['game'], bundles: ['game-pro'], controls: ['engine'], manual: 'https://godotengine.org/download', verify: 'godot --version' });
 
+// ---------- UI/UX design stack (installed from their own repos; never vendored) ----------
+const skillVerify = (names) => `node -e "const fs=require('fs'),p=require('path'),o=require('os');const n=[${names.map((x) => `'${x}'`).join(',')}];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)"`;
+const npxAll = (cmd) => ({ linux: cmd, darwin: cmd, win32: cmd });
+sys('design-emil', 'npx', 'Emil Kowalski design-engineering skills: motion craft, unseen details, animation review, break-the-UI (MIT).', npxAll('npx -y skills add https://github.com/emilkowalski/skill --skill emil-design-eng --skill review-animations --skill animation-performance --skill break-ui --agent claude-code -g -y'), { domains: ['design', 'ui'], bundles: ['ui-design'], verify: skillVerify(['emil-design-eng']), observes: ['design-guidance'], manual: 'https://github.com/emilkowalski/skill' });
+sys('design-taste', 'npx', 'Taste Skill: art direction, anti-slop house style, pre-flight matrix, look-and-fix loop (MIT). Its inspector needs Node 22+ and Chrome/Chromium.', npxAll('npx -y skills add https://github.com/Leonxlnx/taste-skill --skill design-taste-frontend --agent claude-code -g -y'), { domains: ['design', 'ui'], bundles: ['ui-design'], verify: skillVerify(['design-taste-frontend']), observes: ['design-guidance'], manual: 'https://github.com/Leonxlnx/taste-skill' });
+sys('design-impeccable', 'npx', 'Impeccable (Apache-2.0): design vocabulary and commands (shape, craft, audit, critique, polish). Needs network access to impeccable.style on install.', npxAll('npx -y impeccable install -y --providers=claude --scope=user'), { domains: ['design', 'ui'], bundles: ['ui-design'], verify: skillVerify(['impeccable']), observes: ['design-guidance'], manual: 'https://github.com/pbakaus/impeccable' });
+npm('impeccable-detect', 'impeccable', 'impeccable', 'Deterministic UI anti-pattern detector, 61 rules incl. AI-generated UI tells and accessibility. Exit code 2 on findings. Downloads its engine on first run.', { verify: '@exists', domains: ['design', 'ui', 'quality'], bundles: ['ui-design', 'web-pro'], observes: ['ui-antipatterns'] });
+for (const id of ['playwright', 'axe', 'lighthouse', 'pngjs', 'pixelmatch', 'svgo', 'sharp']) T.find((t) => t.id === id).bundles.push('ui-design');
+
 const bundles = {};
 for (const t of T) for (const b of t.bundles) (bundles[b] ||= []).push(t.id);
 const ids = new Set();

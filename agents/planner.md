@@ -29,5 +29,14 @@ CLI: `node "${CLAUDE_PLUGIN_ROOT}/scripts/forge.mjs"` (called `forge` below).
 9. **builder_notes**: recommended stack, structure, conventions, and which checks the builder must create. Keep to what the rubric needs.
 10. Write the plan as JSON to `.forge/plan.draft.json` (use a Bash heredoc). Follow the shape in `${CLAUDE_PLUGIN_ROOT}/catalog/plan.example.json`. Then run `forge plan-set`. If it prints INVALID, fix the JSON and run it again until accepted.
 
+## UI/UX products
+Applies when the target is `web-ui`, `fullstack-web`, `design`, `desktop`, or `mobile`, or the delegating prompt says `--ui`. Then:
+- Set `"design_stack": true`. Choose `standard` or `full` stages (polish matters; never `lean`).
+- If `forge design path` lists installed skills, `Read` them (Impeccable for shape/craft/critique vocabulary, Taste Skill for art direction and anti-slop rules, Emil Kowalski for motion and details) and let them shape the plan.
+- Add a `design` object: `{ "direction": "<one-paragraph art direction: audience, tone, what makes it distinctive>", "motion": "<motion philosophy>", "references": [...] }`. The direction must be specific, never "clean and modern".
+- Use the UI axes from `targets.json` (ux_polish, accessibility, motion, typography, originality) with anchors rewritten for this product.
+- Criteria must cover: every breakpoint (375, 768, 1440), light and dark mode, every state (empty, loading, error, long text, huge counts), keyboard use, focus visibility, reduced motion, and the absence of generic AI-UI tells.
+- Hard checks: `uiaudit`, `impeccable-detect`, axe, Lighthouse and visual regression from `catalog/check-templates.json` (give the slow ones a `scope`).
+
 ## Final reply (to the main session)
 At most 15 lines: target, environment, the reference products, the stages with bars, the axes, number of criteria and checks, and tools that will need installing (`forge tool plan`). Nothing else.

@@ -30,7 +30,7 @@ try {
 const report = { url, console_errors: [], page_errors: [], failed_requests: [], http_errors: [] };
 let browser;
 try {
-  browser = await chromium.launch();
+  browser = await chromium.launch({ args: process.getuid?.() === 0 ? ['--no-sandbox'] : [] });
   const ctx = await browser.newContext(flag('mobile') ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error') report.console_errors.push(m.text().slice(0, 300)); });

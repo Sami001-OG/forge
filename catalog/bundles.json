@@ -78,7 +78,8 @@
   "electron-builder",
   "tesseract",
   "typedoc",
-  "lychee"
+  "lychee",
+  "impeccable-detect"
  ],
  "game-pro": [
   "playwright",
@@ -100,6 +101,19 @@
   "mermaid-cli",
   "lychee",
   "vale"
+ ],
+ "ui-design": [
+  "playwright",
+  "lighthouse",
+  "axe",
+  "pixelmatch",
+  "pngjs",
+  "svgo",
+  "sharp",
+  "design-emil",
+  "design-taste",
+  "design-impeccable",
+  "impeccable-detect"
  ],
  "media-pro": [
   "sharp",

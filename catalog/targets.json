@@ -6,142 +6,328 @@
     "hybrid": "Build and test locally, deploy a part (usually the backend or the bot) remotely, verify both."
   },
   "common_axes": [
-    { "id": "functionality", "critical": true, "anchor": "10 = every requested feature works end to end on the real thing, no stubs, no fake data" },
-    { "id": "correctness", "critical": true, "anchor": "10 = edge cases, bad input, and failure paths are handled; adversarial probing found nothing" },
-    { "id": "code_quality", "critical": false, "anchor": "10 = clear structure, tests that catch real bugs, no dead code, a maintainer would be happy" },
-    { "id": "performance", "critical": false, "anchor": "10 = measured, fast, and no obvious waste for this kind of product" },
-    { "id": "security", "critical": true, "anchor": "10 = scanners clean, inputs validated, secrets safe, least privilege" },
-    { "id": "docs", "critical": false, "anchor": "10 = a stranger can run, use, and extend it from the README alone" }
+    {
+      "id": "functionality",
+      "critical": true,
+      "anchor": "10 = every requested feature works end to end on the real thing, no stubs, no fake data"
+    },
+    {
+      "id": "correctness",
+      "critical": true,
+      "anchor": "10 = edge cases, bad input, and failure paths are handled; adversarial probing found nothing"
+    },
+    {
+      "id": "code_quality",
+      "critical": false,
+      "anchor": "10 = clear structure, tests that catch real bugs, no dead code, a maintainer would be happy"
+    },
+    {
+      "id": "performance",
+      "critical": false,
+      "anchor": "10 = measured, fast, and no obvious waste for this kind of product"
+    },
+    {
+      "id": "security",
+      "critical": true,
+      "anchor": "10 = scanners clean, inputs validated, secrets safe, least privilege"
+    },
+    {
+      "id": "docs",
+      "critical": false,
+      "anchor": "10 = a stranger can run, use, and extend it from the README alone"
+    }
   ],
   "targets": {
     "web-ui": {
       "description": "Static or client-side website, landing page, SPA, dashboard, visual explainer.",
-      "bundles": ["core", "web-pro"],
+      "bundles": [
+        "core",
+        "web-pro"
+      ],
       "environment": "local",
-      "observe": "Screenshot desktop and mobile with `forge shot` and LOOK at them; check console/network errors; run lighthouse and axe; exercise interactions with playwright.",
+      "observe": "Screenshot desktop and mobile with `forge shot` and LOOK at them; check console/network errors; run lighthouse and axe; exercise interactions with playwright. For UI/UX work also run `forge uiaudit <url>` (breakpoints, dark mode, reduced motion, focus, tap targets, motion hygiene) and `impeccable detect src/`.",
       "extra_axes": [
-        { "id": "ux_polish", "critical": true, "anchor": "10 = indistinguishable from a top design studio's work: hierarchy, spacing, type, motion, all states" },
-        { "id": "accessibility", "critical": false, "anchor": "10 = axe clean, keyboard-complete, sensible contrast and focus" }
-      ]
+        {
+          "id": "ux_polish",
+          "critical": true,
+          "anchor": "10 = indistinguishable from a top design studio's work: hierarchy, spacing, type, motion, all states"
+        },
+        {
+          "id": "accessibility",
+          "critical": false,
+          "anchor": "10 = axe clean, keyboard-complete, sensible contrast and focus"
+        },
+        {
+          "id": "motion",
+          "critical": false,
+          "anchor": "10 = every animation has a purpose, fast easing (under ~300ms on interactions), springs/gestures feel physical, nothing animates that is used constantly, reduced-motion respected"
+        },
+        {
+          "id": "typography",
+          "critical": true,
+          "anchor": "10 = deliberate type scale and pairing, comfortable line length and rhythm, no default-font look, hierarchy readable at a glance"
+        },
+        {
+          "id": "originality",
+          "critical": true,
+          "anchor": "10 = a specific point of view; none of the generic AI-UI tells (purple gradients, identical card grids, stock hero); could not be mistaken for a template"
+        }
+      ],
+      "design_stack": true
     },
     "fullstack-web": {
       "description": "Web app with a backend, database, auth, or deployment.",
-      "bundles": ["core", "web-pro", "api-pro", "security-pro"],
+      "bundles": [
+        "core",
+        "web-pro",
+        "api-pro",
+        "security-pro"
+      ],
       "environment": "hybrid",
       "observe": "Playwright user flows against the running app; HTTP checks against the API; DB state inspection; for remote, verify the live URL.",
       "extra_axes": [
-        { "id": "ux_polish", "critical": true, "anchor": "10 = top-studio quality UI with every state designed" },
-        { "id": "accessibility", "critical": false, "anchor": "10 = axe clean, keyboard-complete" }
-      ]
+        {
+          "id": "ux_polish",
+          "critical": true,
+          "anchor": "10 = top-studio quality UI with every state designed"
+        },
+        {
+          "id": "accessibility",
+          "critical": false,
+          "anchor": "10 = axe clean, keyboard-complete"
+        },
+        {
+          "id": "motion",
+          "critical": false,
+          "anchor": "10 = every animation has a purpose, fast easing (under ~300ms on interactions), springs/gestures feel physical, nothing animates that is used constantly, reduced-motion respected"
+        },
+        {
+          "id": "typography",
+          "critical": true,
+          "anchor": "10 = deliberate type scale and pairing, comfortable line length and rhythm, no default-font look, hierarchy readable at a glance"
+        },
+        {
+          "id": "originality",
+          "critical": true,
+          "anchor": "10 = a specific point of view; none of the generic AI-UI tells (purple gradients, identical card grids, stock hero); could not be mistaken for a template"
+        }
+      ],
+      "design_stack": true
     },
     "api": {
       "description": "HTTP/gRPC/GraphQL backend service or microservice.",
-      "bundles": ["core", "api-pro", "security-pro"],
+      "bundles": [
+        "core",
+        "api-pro",
+        "security-pro"
+      ],
       "environment": "hybrid",
       "observe": "Contract tests from the OpenAPI schema; schemathesis fuzzing; load test with autocannon/k6; inspect logs and DB state; verify the live URL if deployed.",
       "extra_axes": [
-        { "id": "api_design", "critical": false, "anchor": "10 = consistent, documented, versioned, errors are structured and helpful" }
+        {
+          "id": "api_design",
+          "critical": false,
+          "anchor": "10 = consistent, documented, versioned, errors are structured and helpful"
+        }
       ]
     },
     "cli-lib": {
       "description": "Command-line tool or reusable library/package.",
-      "bundles": ["core"],
+      "bundles": [
+        "core"
+      ],
       "environment": "local",
       "observe": "Run the commands with real inputs and read stdout/stderr/exit codes; test suite with coverage; try bad inputs and --help.",
       "extra_axes": [
-        { "id": "ergonomics", "critical": false, "anchor": "10 = great defaults, clear errors, excellent --help, composable" }
+        {
+          "id": "ergonomics",
+          "critical": false,
+          "anchor": "10 = great defaults, clear errors, excellent --help, composable"
+        }
       ]
     },
     "bot": {
       "description": "Long-running bot or automation (trading, chat, scraping, scheduled jobs).",
-      "bundles": ["core", "bots-pro", "security-pro"],
+      "bundles": [
+        "core",
+        "bots-pro",
+        "security-pro"
+      ],
       "environment": "hybrid",
       "observe": "ALWAYS paper/sandbox mode; replay historical data; inspect logs for a sustained run; test restart/crash recovery and rate-limit handling; for remote, check uptime and logs over SSH.",
       "extra_axes": [
-        { "id": "reliability", "critical": true, "anchor": "10 = survives disconnects, restarts, rate limits, partial fills; state is recoverable; kill switch exists" }
+        {
+          "id": "reliability",
+          "critical": true,
+          "anchor": "10 = survives disconnects, restarts, rate limits, partial fills; state is recoverable; kill switch exists"
+        }
       ],
       "safety": "Never enable live trading or real-money actions. Default to paper mode and require an explicit human config change for live."
     },
     "mobile": {
       "description": "iOS/Android/cross-platform mobile app.",
-      "bundles": ["core", "mobile-pro", "web-pro"],
+      "bundles": [
+        "core",
+        "mobile-pro",
+        "web-pro"
+      ],
       "environment": "hybrid",
       "observe": "Build the app; run in an emulator; screenshots and logcat via adb; Maestro flows. iOS needs macOS: if unavailable, say so and verify the web/Expo build instead.",
       "extra_axes": [
-        { "id": "ux_polish", "critical": true, "anchor": "10 = native-feeling, fluid, every state designed" }
+        {
+          "id": "ux_polish",
+          "critical": true,
+          "anchor": "10 = native-feeling, fluid, every state designed"
+        }
       ]
     },
     "systems": {
       "description": "C/C++/Rust/Go systems software, engines, compilers, protocols.",
-      "bundles": ["core", "systems-pro", "security-pro"],
+      "bundles": [
+        "core",
+        "systems-pro",
+        "security-pro"
+      ],
       "environment": "local",
       "observe": "Compile with warnings as errors; run tests under ASan/UBSan/TSan; valgrind; benchmark with hyperfine/Google Benchmark; fuzz parsers.",
       "extra_axes": [
-        { "id": "memory_safety", "critical": true, "anchor": "10 = sanitizers and valgrind clean under tests and fuzzing" }
+        {
+          "id": "memory_safety",
+          "critical": true,
+          "anchor": "10 = sanitizers and valgrind clean under tests and fuzzing"
+        }
       ]
     },
     "embedded": {
       "description": "Firmware or hardware-adjacent software.",
-      "bundles": ["core", "systems-pro"],
+      "bundles": [
+        "core",
+        "systems-pro"
+      ],
       "environment": "local",
       "observe": "Build with PlatformIO; run in QEMU/Renode emulation or host-side unit tests; static analysis.",
       "extra_axes": [
-        { "id": "memory_safety", "critical": true, "anchor": "10 = static analysis clean, bounded memory, no UB" }
+        {
+          "id": "memory_safety",
+          "critical": true,
+          "anchor": "10 = static analysis clean, bounded memory, no UB"
+        }
       ]
     },
     "data-ml": {
       "description": "Data pipeline, analysis, notebook, or ML model.",
-      "bundles": ["core", "data-pro"],
+      "bundles": [
+        "core",
+        "data-pro"
+      ],
       "environment": "local",
       "observe": "Profile and validate data; plot results to images and look at them; assert metrics against thresholds; reproducibility check.",
       "extra_axes": [
-        { "id": "reproducibility", "critical": true, "anchor": "10 = one command reproduces results; seeds, versions, and data lineage are pinned" }
+        {
+          "id": "reproducibility",
+          "critical": true,
+          "anchor": "10 = one command reproduces results; seeds, versions, and data lineage are pinned"
+        }
       ]
     },
     "game": {
       "description": "Game or interactive simulation.",
-      "bundles": ["core", "game-pro", "web-pro"],
+      "bundles": [
+        "core",
+        "game-pro",
+        "web-pro"
+      ],
       "environment": "local",
       "observe": "Headless run; scripted input; screenshots over time; frame-time sampling; check for softlocks and invalid states.",
       "extra_axes": [
-        { "id": "game_feel", "critical": true, "anchor": "10 = responsive controls, clear feedback, juicy, balanced, no dead ends" }
+        {
+          "id": "game_feel",
+          "critical": true,
+          "anchor": "10 = responsive controls, clear feedback, juicy, balanced, no dead ends"
+        }
       ]
     },
     "media": {
       "description": "Video/audio/image generation or processing pipeline.",
-      "bundles": ["core", "media-pro"],
+      "bundles": [
+        "core",
+        "media-pro"
+      ],
       "environment": "local",
       "observe": "ffprobe the output; extract frames and look at them; transcribe audio and compare with the script; check sync, duration, loudness.",
       "extra_axes": [
-        { "id": "output_quality", "critical": true, "anchor": "10 = watchable/listenable as a professional deliverable" }
+        {
+          "id": "output_quality",
+          "critical": true,
+          "anchor": "10 = watchable/listenable as a professional deliverable"
+        }
       ]
     },
     "desktop": {
       "description": "Desktop GUI application.",
-      "bundles": ["core", "web-pro", "game-pro"],
+      "bundles": [
+        "core",
+        "web-pro",
+        "game-pro"
+      ],
       "environment": "local",
       "observe": "Run under Xvfb; scripted input with xdotool; screenshot with scrot; check packaging.",
       "extra_axes": [
-        { "id": "ux_polish", "critical": true, "anchor": "10 = native-quality UI with every state designed" }
-      ]
+        {
+          "id": "ux_polish",
+          "critical": true,
+          "anchor": "10 = native-quality UI with every state designed"
+        }
+      ],
+      "design_stack": true
     },
     "docs": {
       "description": "Documentation site, guide, or written deliverable.",
-      "bundles": ["core", "docs-pro"],
+      "bundles": [
+        "core",
+        "docs-pro"
+      ],
       "environment": "local",
       "observe": "Build the site; check links with lychee; lint prose; render and look at pages; verify every code sample actually runs.",
       "extra_axes": [
-        { "id": "clarity", "critical": true, "anchor": "10 = accurate, complete, skimmable, every example runs" }
+        {
+          "id": "clarity",
+          "critical": true,
+          "anchor": "10 = accurate, complete, skimmable, every example runs"
+        }
       ]
     },
     "design": {
       "description": "Visual design, brand assets, UI mockups as code.",
-      "bundles": ["core", "web-pro"],
+      "bundles": [
+        "core",
+        "web-pro"
+      ],
       "environment": "local",
       "observe": "Render and screenshot at several sizes; compare against reference products; check contrast and spacing.",
       "extra_axes": [
-        { "id": "ux_polish", "critical": true, "anchor": "10 = top design studio quality" }
-      ]
+        {
+          "id": "ux_polish",
+          "critical": true,
+          "anchor": "10 = top design studio quality"
+        },
+        {
+          "id": "motion",
+          "critical": false,
+          "anchor": "10 = every animation has a purpose, fast easing (under ~300ms on interactions), springs/gestures feel physical, nothing animates that is used constantly, reduced-motion respected"
+        },
+        {
+          "id": "typography",
+          "critical": true,
+          "anchor": "10 = deliberate type scale and pairing, comfortable line length and rhythm, no default-font look, hierarchy readable at a glance"
+        },
+        {
+          "id": "originality",
+          "critical": true,
+          "anchor": "10 = a specific point of view; none of the generic AI-UI tells (purple gradients, identical card grids, stock hero); could not be mistaken for a template"
+        }
+      ],
+      "design_stack": true
     }
   }
 }

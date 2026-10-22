@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Good page</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.6 system-ui, sans-serif; margin: 0; padding: 24px; max-width: 60ch; }
+  button, a.cta { min-width: 48px; min-height: 48px; padding: 0 20px; font-size: 16px; transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms ease-out; }
+  button:hover { transform: translateY(-1px); }
+  button:focus-visible, a.cta:focus-visible { outline: 3px solid #0a58ca; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Hello</h1>
+    <p>A calm, accessible page.</p>
+    <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="A single pixel" width="40" height="40">
+    <button type="button">Save changes</button>
+    <a class="cta" href="#next" style="display:inline-flex;align-items:center">Next step</a>
+  </main>
+</body>
+</html>

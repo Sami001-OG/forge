@@ -11,6 +11,7 @@ import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
 import { loadCatalog, loadBundles, loadTargets, search, pluginRoot } from './lib/catalog.mjs';
 import * as prov from './lib/provision.mjs';
 import { loadImgLibs, comparePng } from './lib/visual.mjs';
+import { DESIGN_TOOLS, DESIGN_SKILLS, ROLE, findSkills } from './lib/design.mjs';
 import { takeSnapshot, scopeFp, changedFiles, hitsShared, snapshotObject, matcher, DEFAULT_IGNORE, DEFAULT_SHARED } from './lib/fingerprint.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +26,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const k = a.slice(2);
       const n = argv[i + 1];
-      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed', 'confirm', 'update'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
+      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed', 'confirm', 'update', 'ui'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
     } else pos.push(a);
   }
   return { pos, flags };
@@ -79,7 +80,7 @@ async function main() {
   switch (cmd) {
     case 'init': {
       const prompt = pos.join(' ').trim();
-      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>] [--plateau N]');
+      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>] [--plateau N] [--ui]');
       const old = loadState(project);
       if (old && ['running', 'delivering'].includes(old.status) && !flags.force) die('forge: a loop is already active here. /forge:status to inspect, /forge:abort to cancel.');
       fs.mkdirSync(forgeDir(project), { recursive: true });
@@ -89,7 +90,7 @@ async function main() {
       if (flags['max-rounds']) caps.max_rounds = parseInt(flags['max-rounds'], 10);
       if (flags['max-minutes']) caps.max_minutes = parseInt(flags['max-minutes'], 10);
       const s = {
-        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null, plateau: Number.isInteger(Number(flags.plateau)) && flags.plateau !== undefined ? Number(flags.plateau) : 2 },
+        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null, ui: !!flags.ui, plateau: Number.isInteger(Number(flags.plateau)) && flags.plateau !== undefined ? Number(flags.plateau) : 2 },
         created_at: Date.now(), caps, round: 1, stage_idx: 0, blocks: 0, idle_blocks: 0, last_fp: null,
         history: [], best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null, plan: null,
       };
@@ -103,12 +104,13 @@ async function main() {
       const file = pos[0] || path.join(forgeDir(project), 'plan.draft.json');
       const raw = readJson(file, null);
       if (!raw) die(`forge: cannot read JSON plan at ${file}`);
-      const plan = normalizePlan(raw, { bar: s.opts?.bar });
+      const plan = normalizePlan(raw, { bar: s.opts?.bar, ui: s.opts?.ui });
       const errs = validatePlan(plan, project);
       if (errs.length) die('forge: plan INVALID:\n' + errs.map((e) => `  - ${e}`).join('\n'));
       s.plan = plan;
       saveState(project, s);
       writeRubric(project, s);
+      if (plan.design_stack) { const f = findSkills(project); const miss = DESIGN_TOOLS.filter((t) => f[t].length === 0); if (miss.length) out(`forge: note: design stack not installed (${miss.join(', ')}). Run: forge design install`); }
       out(`forge: plan accepted. ${plan.stages.length} stages, ${plan.axes.length} axes, ${plan.criteria.length} criteria, ${plan.checks.length} checks. Rubric: .forge/rubric.md`);
       break;
     }
@@ -324,6 +326,31 @@ async function main() {
       process.exit(pass ? 0 : 1);
       break;
     }
+    case 'design': {
+      const sub = pos[0] || 'status';
+      const found = findSkills(project);
+      if (sub === 'status') {
+        for (const t of DESIGN_TOOLS) {
+          const have = found[t].map((x) => x.name), want = DESIGN_SKILLS[t];
+          out(`${have.length ? 'ok     ' : 'MISSING'} ${t}: ${have.length}/${want.length} skill(s) found${have.length ? ` (${have.join(', ')})` : ''}`);
+        }
+        const detect = loadCatalog(project).find((x) => x.id === 'impeccable-detect');
+        out(`${prov.verify(project, detect).ok ? 'ok     ' : 'MISSING'} impeccable-detect (deterministic UI anti-pattern check)`);
+        if (DESIGN_TOOLS.some((t) => !found[t].length)) out('install with: forge design install   (needs your approval: it runs npx installers from the skills\' own repos)');
+      } else if (sub === 'path') {
+        const all = Object.values(found).flat();
+        if (!all.length) die('forge: no design skills installed. Run: forge design install');
+        for (const x of all) out(`${x.path}  # ${ROLE[x.name] || x.name}`);
+      } else if (sub === 'install') {
+        await toolCmd(['install', ...DESIGN_TOOLS, 'impeccable-detect'], {});
+      } else die('usage: forge design status | path | install');
+      break;
+    }
+    case 'uiaudit': {
+      const r = spawnSync(process.execPath, [path.join(here, 'uiaudit.mjs'), ...rest], { stdio: 'inherit', env: toolEnv(project) });
+      process.exit(r.status ?? 1);
+      break;
+    }
     case 'doctor': await doctor(); break;
     case 'exec': {
       // Run any command with the project-local tools on PATH: forge exec -- eslint .
@@ -349,7 +376,7 @@ async function main() {
     }
     case 'http': await httpCmd(pos, flags); break;
     default:
-      out('forge CLI: init | plan-set | start | checks [--full] | verdict | signoff | tweak | status | abort | doctor | exec | env | tool | shot | http | visual | assert-json');
+      out('forge CLI: init | plan-set | start | checks [--full] | verdict | signoff | tweak | status | abort | doctor | exec | env | tool | shot | http | visual | assert-json | uiaudit | design');
   }
 }
 

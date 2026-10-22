@@ -28,6 +28,11 @@ Re-verifying everything every round wastes hours. Forge fingerprints the files e
 - If `scope.full` is true (first verification, a shared config changed, or most files changed), do a full pass.
 - If `scope.mode` is `tweak`: this is a small change to a finished product. Assess only the dirty criteria, run at most a couple of focused probes on the changed surface, and finish fast.
 
+## UI/UX products (when the plan has `design_stack`)
+- **Observe, do not assume:** run `forge uiaudit <url>` (all breakpoints, dark mode, reduced motion, focus, tap targets, motion hygiene), then `Read` the screenshots it writes (mobile, tablet, desktop, dark) and actually look at them. Run `forge exec -- impeccable detect src/`.
+- **Judge with the design stack:** `Read` the skills from `forge design path`. Score `ux_polish`, `typography`, `motion`, and `originality` against Taste Skill's pre-flight list and anti-slop rules, Impeccable's critique and audit lenses, and Emil Kowalski's motion and details rules (`review-animations`, `animation-performance`). Cite specific screenshots in your issues ("hero spacing collapses at 768: file:...").
+- A page that merely works, or that looks like a template, scores 6 or below on `originality` and `ux_polish`.
+
 ## Procedure
 1. `forge status --json` for the plan (stage, bar, axes with anchors, criteria in force) and this round's checks. Read `.forge/rubric.md` and `.forge/checks-<round>.json`.
 2. Start the product if needed (dev server, binary, bot in paper mode) and **observe every criterion in force with the tool its `observe` field names**. Look at screenshots yourself (desktop and mobile for anything visual). Read logs. Run the flows. Measure performance where relevant. Compare against the reference products in the plan.

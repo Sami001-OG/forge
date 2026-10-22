@@ -21,6 +21,7 @@ export function normalizePlan(plan, opts = {}) {
   }
   p.checks = (p.checks || []).map((c) => ({ timeout_s: 600, ...c }));
   p.references ||= [];
+  if (opts.ui) p.design_stack = true;
   p.ignore = Array.isArray(p.ignore) ? p.ignore : [];
   p.shared = Array.isArray(p.shared) && p.shared.length ? p.shared : [...DEFAULT_SHARED];
   p.bundles = [...new Set(['core', ...(p.bundles || [])])];
@@ -39,6 +40,8 @@ export function validatePlan(plan, project) {
   need(typeof plan.summary === 'string' && plan.summary.length > 20, 'summary: required string (>20 chars)');
   need(targets[plan.target_type], `target_type must be one of: ${Object.keys(targets).join(', ')}`);
   need(ENVS.has(plan.environment), 'environment must be local|remote|hybrid');
+  need(plan.design_stack === undefined || typeof plan.design_stack === 'boolean', 'design_stack must be boolean');
+  need(plan.design === undefined || (plan.design && typeof plan.design === 'object' && typeof plan.design.direction === 'string'), 'design must be an object with a direction string');
   need(plan.stage_preset === undefined || STAGE_PRESETS[plan.stage_preset], `stage_preset must be one of: ${Object.keys(STAGE_PRESETS).join(', ')}`);
   need(Array.isArray(plan.axes) && plan.axes.length >= 3, 'axes: at least 3 rubric axes required');
   const axisIds = new Set();
