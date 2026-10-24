@@ -138,6 +138,18 @@
         "**/*.html"
       ],
       "note": "61 deterministic rules incl. AI-generated UI tells; exit code 2 on findings"
+    },
+    "design-conformance": {
+      "cmd": "{forge} design check",
+      "tool": "builtin",
+      "scope": [
+        "src/**",
+        "public/**",
+        "**/*.css",
+        "**/*.html",
+        "tailwind.config.*"
+      ],
+      "note": "does the code use the generated design system's palette and fonts (core palette roles and both fonts are errors)"
     }
   }
 }

@@ -31,6 +31,7 @@ Re-verifying everything every round wastes hours. Forge fingerprints the files e
 ## UI/UX products (when the plan has `design_stack`)
 - **Observe, do not assume:** run `forge uiaudit <url>` (all breakpoints, dark mode, reduced motion, focus, tap targets, motion hygiene), then `Read` the screenshots it writes (mobile, tablet, desktop, dark) and actually look at them. Run `forge exec -- impeccable detect src/`.
 - **Judge with the design stack:** `Read` the skills from `forge design path`. Score `ux_polish`, `typography`, `motion`, and `originality` against Taste Skill's pre-flight list and anti-slop rules, Impeccable's critique and audit lenses, and Emil Kowalski's motion and details rules (`review-animations`, `animation-performance`). Cite specific screenshots in your issues ("hero spacing collapses at 768: file:...").
+- **Fidelity to the design system:** compare the build to `.forge/design-system.md` (page pattern and section order, palette tokens, fonts, key effects, anti-patterns avoided) and tick through its pre-delivery checklist item by item; run `forge design check`. Deviations need a good reason.
 - A page that merely works, or that looks like a template, scores 6 or below on `originality` and `ux_polish`.
 
 ## Procedure

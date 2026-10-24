@@ -3423,6 +3423,33 @@
    "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['impeccable'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
   },
   {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-uiuxpro",
+   "summary": "UI UX Pro Max (MIT): searchable design intelligence (79 styles, 192 palettes, 74 font pairings, UX rules). `forge design system` uses it to generate the product design system. Needs Python 3.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['ui-ux-pro-max'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
    "tier": 0,
    "domains": [
     "design",

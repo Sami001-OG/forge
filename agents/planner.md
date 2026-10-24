@@ -36,7 +36,8 @@ Applies when the target is `web-ui`, `fullstack-web`, `design`, `desktop`, or `m
 - Add a `design` object: `{ "direction": "<one-paragraph art direction: audience, tone, what makes it distinctive>", "motion": "<motion philosophy>", "references": [...] }`. The direction must be specific, never "clean and modern".
 - Use the UI axes from `targets.json` (ux_polish, accessibility, motion, typography, originality) with anchors rewritten for this product.
 - Criteria must cover: every breakpoint (375, 768, 1440), light and dark mode, every state (empty, loading, error, long text, huge counts), keyboard use, focus visibility, reduced motion, and the absence of generic AI-UI tells.
-- Hard checks: `uiaudit`, `impeccable-detect`, axe, Lighthouse and visual regression from `catalog/check-templates.json` (give the slow ones a `scope`).
+- If UI UX Pro Max is installed (`forge design status`), you may run `forge design system "<keywords>" --name "<Product>"` yourself to ground the direction (palette, fonts, pattern, pre-delivery checklist); read `.forge/design-system.md` and reflect it in `design.direction`. Otherwise the main session generates it after planning. Add a criterion that the implementation follows the generated design system and its pre-delivery checklist.
+- Hard checks: `design-conformance`, `uiaudit`, `impeccable-detect`, axe, Lighthouse and visual regression from `catalog/check-templates.json` (give the slow ones a `scope`).
 
 ## Final reply (to the main session)
 At most 15 lines: target, environment, the reference products, the stages with bars, the axes, number of criteria and checks, and tools that will need installing (`forge tool plan`). Nothing else.

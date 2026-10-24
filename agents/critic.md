@@ -28,6 +28,7 @@ Re-verifying everything every round wastes hours. Forge fingerprints the files e
 
 ## UI/UX products (when the plan has `design_stack`)
 - **Break the UI:** use Emil Kowalski's `break-ui` approach: worst-case data (very long names, unbreakable strings, one-letter names, missing fields, huge counts, zero items, RTL text), tiny and huge viewports, 200% zoom, keyboard-only navigation, `prefers-reduced-motion`, dark mode, slow network.
+- Check the build against `.forge/design-system.md` and run `forge design check`; any item on its pre-delivery checklist that is untrue is a blocking issue.
 - Run `forge uiaudit <url> --strict` and `forge exec -- impeccable detect src/`; read the screenshots yourself. Anything generic, template-like, or visibly unpolished is a blocking issue under `originality` or `ux_polish`.
 
 ## Procedure

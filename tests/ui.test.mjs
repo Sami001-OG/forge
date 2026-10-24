@@ -100,3 +100,85 @@ test('uiaudit fails a sloppy page and names the problems', async (t) => {
   assert.equal(r.status, 1, r.stdout + r.stderr);
   for (const type of ['missing-lang', 'missing-title', 'missing-viewport-meta', 'overflow-x', 'img-no-alt', 'tap-target-too-small', 'no-accessible-name', 'tiny-text', 'transition-all', 'slow-ui-transition', 'weak-easing', 'no-reduced-motion-rule']) assert.match(r.stdout, new RegExp(type), type);
 });
+
+// ---------- UI UX Pro Max: design system generation and conformance ----------
+import { parseDesignSystem, checkConformance, findPython } from '../scripts/lib/design.mjs';
+
+const SAMPLE = `## Design System: Demo
+
+### Colors
+| Role | Hex | CSS Variable |
+|------|-----|--------------|
+| Primary | \`#0F172A\` | \`--color-primary\` |
+| On Primary | \`#FFFFFF\` | \`--color-on-primary\` |
+| Secondary | \`#1E293B\` | \`--color-secondary\` |
+| Accent/CTA | \`#22C55E\` | \`--color-accent\` |
+| Background | \`#020617\` | \`--color-background\` |
+| Foreground | \`#F8FAFC\` | \`--color-foreground\` |
+| Muted | \`#1A1E2F\` | \`--color-muted\` |
+
+### Typography
+- **Heading:** Fira Code
+- **Body:** Fira Sans
+`;
+
+test('design system markdown is parsed (palette roles, hex, variables, fonts)', () => {
+  const p = parseDesignSystem(SAMPLE);
+  assert.equal(p.colors.length, 7);
+  assert.deepEqual(p.colors[3], { role: 'Accent/CTA', hex: '#22c55e', variable: '--color-accent' });
+  assert.deepEqual(p.fonts, { heading: 'Fira Code', body: 'Fira Sans' });
+});
+
+test('conformance: core palette roles and fonts are errors, others warnings', () => {
+  const proj = tmpProject();
+  const css = ':root{--color-primary:#0F172A;--color-secondary:#1E293B;--color-accent:#22C55E;--color-background:#020617;--color-foreground:#F8FAFC}\nbody{font-family:"Fira Sans"} h1{font-family:"Fira Code"}';
+  fs.writeFileSync(path.join(proj, 'style.css'), css);
+  const parsed = parseDesignSystem(SAMPLE);
+  let r = checkConformance(proj, parsed);
+  assert.equal(r.errors, 0);
+  assert.equal(r.warnings, 2, 'On Primary #fff and Muted are non-core and missing');
+  fs.writeFileSync(path.join(proj, 'style.css'), css.replace('#22C55E', '#ff00aa').replace('Fira Code', 'Georgia'));
+  r = checkConformance(proj, parsed);
+  assert.equal(r.errors, 2, 'accent colour and heading font missing');
+  assert.ok(r.findings.some((f) => f.name.startsWith('Accent/CTA') && f.severity === 'error'));
+  assert.ok(r.findings.some((f) => f.name === 'heading font Fira Code' && f.severity === 'error'));
+});
+
+test('forge design system / check end to end with a stub skill (needs python3)', (t) => {
+  if (!findPython()) return t.skip('python3 not available');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-home-'));
+  const proj = tmpProject();
+  const skill = path.join(home, '.claude', 'skills', 'ui-ux-pro-max');
+  fs.mkdirSync(path.join(skill, 'scripts'), { recursive: true });
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), '---\nname: ui-ux-pro-max\n---\n');
+  fs.writeFileSync(path.join(skill, 'scripts', 'search.py'), `import sys\nprint(${JSON.stringify(SAMPLE)}.replace('Demo', sys.argv[sys.argv.index('-p') + 1]) + '\\n<!-- args: ' + ' '.join(sys.argv[2:]) + ' -->')\n`);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
+  const run = (...a) => spawnSync(process.execPath, [FORGE, ...a], { cwd: proj, env, encoding: 'utf8' });
+
+  assert.notEqual(run('design', 'system').status, 0, 'keywords are required');
+  const chk0 = run('design', 'check');
+  assert.equal(chk0.status, 1, 'skill installed but no design system generated yet');
+  const gen = run('design', 'system', 'fintech', 'dashboard', '--name', 'Acme', '--stack', 'nextjs', '--motion', '4');
+  assert.equal(gen.status, 0, gen.stderr + gen.stdout);
+  const md = fs.readFileSync(path.join(proj, '.forge', 'design-system.md'), 'utf8');
+  assert.match(md, /Design System: Acme/);
+  assert.match(md, /--stack nextjs/);
+  assert.match(md, /--motion 4/);
+  assert.match(gen.stdout, /Fira Code \/ Fira Sans/);
+  assert.notEqual(run('design', 'system', 'x', '--motion', '99').status, 0, 'dials are validated');
+
+  assert.equal(run('design', 'check').status, 1, 'code does not use the palette yet');
+  fs.writeFileSync(path.join(proj, 'app.css'), ':root{--color-primary:#0F172A;--color-secondary:#1E293B;--color-accent:#22C55E;--color-background:#020617;--color-foreground:#F8FAFC} body{font-family:"Fira Sans"} h1{font-family:"Fira Code"}');
+  const ok = run('design', 'check');
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.match(ok.stdout, /PASS design check: 0 error\(s\)/);
+  assert.match(run('design', 'path').stdout, /design-system\.md/);
+});
+
+test('design check is skipped when the skill is not installed', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-home-'));
+  const proj = tmpProject();
+  const r = spawnSync(process.execPath, [FORGE, 'design', 'check'], { cwd: proj, env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') }, encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /SKIP/);
+});
