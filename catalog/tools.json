@@ -3450,6 +3450,114 @@
    "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['ui-ux-pro-max'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
   },
   {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-hallmark",
+   "summary": "Hallmark (MIT): design skill for sites and new pages that look designed, not generated; ships the sloplint linter. Static lint needs only Node 18.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/Nutlope/hallmark --skill hallmark --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/Nutlope/hallmark --skill hallmark --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/Nutlope/hallmark --skill hallmark --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/Nutlope/hallmark"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hallmark'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-hue",
+   "summary": "Hue (MIT): learns a brand from a URL, name or screenshot and generates a complete design-language skill (tokens, components, light and dark).",
+   "install": {
+    "method": "system",
+    "bin": "git",
+    "cmds": {
+     "linux": "git clone --depth 1 https://github.com/dominikmartn/hue \"$HOME/.claude/skills/hue\"",
+     "darwin": "git clone --depth 1 https://github.com/dominikmartn/hue \"$HOME/.claude/skills/hue\"",
+     "win32": "git clone --depth 1 https://github.com/dominikmartn/hue \"%USERPROFILE%\\.claude\\skills\\hue\""
+    },
+    "manual": "https://github.com/dominikmartn/hue"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hue'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-interface",
+   "summary": "Interface Design (MIT): craft, memory and consistency for dashboards, admin panels, apps and tools; keeps decisions in .interface-design/system.md.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/Dammyjay93/interface-design --skill interface-design --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/Dammyjay93/interface-design --skill interface-design --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/Dammyjay93/interface-design --skill interface-design --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/Dammyjay93/interface-design"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['interface-design'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
+   "tier": 2,
+   "domains": [
+    "design",
+    "ui"
+   ],
+   "bundles": [
+    "ui-design"
+   ],
+   "observes": [
+    "design-guidance"
+   ],
+   "controls": [],
+   "id": "design-typography",
+   "summary": "Better Typography by Jakub Krehel (MIT): type scale, spacing, sizing, variable fonts, OpenType features, wrapping and truncation.",
+   "install": {
+    "method": "system",
+    "bin": "npx",
+    "cmds": {
+     "linux": "npx -y skills add https://github.com/jakubkrehel/skills --skill better-typography --agent claude-code -g -y",
+     "darwin": "npx -y skills add https://github.com/jakubkrehel/skills --skill better-typography --agent claude-code -g -y",
+     "win32": "npx -y skills add https://github.com/jakubkrehel/skills --skill better-typography --agent claude-code -g -y"
+    },
+    "manual": "https://github.com/jakubkrehel/skills"
+   },
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['better-typography'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+  },
+  {
    "tier": 0,
    "domains": [
     "design",

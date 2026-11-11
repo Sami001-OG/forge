@@ -18,7 +18,7 @@ const fixture = (n) => `file://${path.join(root, 'tests', 'fixtures', 'ui', n)}`
 test('design stack is catalogued: skills need approval, the detector is auto-installable, all in the ui-design bundle', () => {
   const tools = loadCatalog();
   const by = Object.fromEntries(tools.map((t) => [t.id, t]));
-  for (const id of DESIGN_TOOLS) { assert.ok(by[id], id); assert.ok(by[id].tier >= 2, `${id} runs a third-party installer: needs approval`); assert.match(by[id].install.cmds.linux, /npx -y /); }
+  for (const id of DESIGN_TOOLS) { assert.ok(by[id], id); assert.ok(by[id].tier >= 2, `${id} runs a third-party installer: needs approval`); assert.match(by[id].install.cmds.linux, /npx -y |git clone /); }
   assert.equal(by['impeccable-detect'].tier, 0);
   const b = loadBundles()['ui-design'];
   for (const id of [...DESIGN_TOOLS, 'impeccable-detect', 'playwright', 'axe', 'lighthouse', 'pngjs', 'pixelmatch']) assert.ok(b.includes(id), `ui-design lacks ${id}`);
@@ -181,4 +181,103 @@ test('design check is skipped when the skill is not installed', () => {
   const r = spawnSync(process.execPath, [FORGE, 'design', 'check'], { cwd: proj, env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') }, encoding: 'utf8' });
   assert.equal(r.status, 0);
   assert.match(r.stdout, /SKIP/);
+});
+
+// ---------- Hallmark, Hue, Interface Design, Better Typography ----------
+import { parseHueModel, checkHueConformance } from '../scripts/lib/design.mjs';
+
+const HUE_YAML = `name: "Ledger"
+primitives:
+  colors:
+    cream:
+      50:  "#F6F1E0"
+tokens:
+  colors:
+    canvas:        "#F0EAD6"
+    text:          "#0A0A0A"
+    accent:        "#C8102E"   # press red
+    accent-dark:   "#E8234E"
+  typography:
+    display:
+      family: "Playfair Display"   # masthead
+    body:
+      family: "PT Serif"
+hero_stage:
+  background: "#123456"
+`;
+
+test('the four new skills are catalogued with the right installers', () => {
+  const by = Object.fromEntries(loadCatalog().map((t) => [t.id, t]));
+  for (const id of ['design-hallmark', 'design-hue', 'design-interface', 'design-typography']) { assert.ok(by[id], id); assert.ok(by[id].tier >= 2); assert.ok(loadBundles()['ui-design'].includes(id)); }
+  assert.match(by['design-hallmark'].install.cmds.linux, /skills add https:\/\/github\.com\/Nutlope\/hallmark --skill hallmark/);
+  assert.match(by['design-hue'].install.cmds.linux, /git clone --depth 1 https:\/\/github\.com\/dominikmartn\/hue/);
+  assert.match(by['design-interface'].install.cmds.linux, /Dammyjay93\/interface-design --skill interface-design/);
+  assert.match(by['design-typography'].install.cmds.linux, /jakubkrehel\/skills --skill better-typography/);
+  assert.deepEqual(DESIGN_SKILLS['design-hue'], ['hue']);
+});
+
+test('plan: one design engine, validated', () => {
+  const p = normalizePlan(rawPlan(), { ui: true });
+  p.design = { direction: 'Editorial broadsheet for traders, cream stock, one red accent.', engine: 'hue' };
+  assert.deepEqual(validatePlan(p, tmpProject()), []);
+  p.design.engine = 'everything';
+  assert.match(validatePlan(p, tmpProject()).join('\n'), /design\.engine must be/);
+});
+
+test('Hue design-model.yaml: token colours and font families are read, nothing outside tokens', () => {
+  const m = parseHueModel(HUE_YAML);
+  assert.deepEqual(m.colors.map((c) => c.hex), ['#f0ead6', '#0a0a0a', '#c8102e', '#e8234e']);
+  assert.deepEqual(m.fonts, ['Playfair Display', 'PT Serif']);
+});
+
+test('Hue conformance: palette by coverage, fonts must be present', () => {
+  const proj = tmpProject();
+  const m = parseHueModel(HUE_YAML);
+  fs.writeFileSync(path.join(proj, 'a.css'), ':root{--c:#F0EAD6;--t:#0A0A0A;--a:#C8102E} h1{font-family:"Playfair Display"} p{font-family:"PT Serif"}');
+  let r = checkHueConformance(proj, m);
+  assert.equal(r.errors, 0);
+  assert.equal(r.coverage, 75);
+  assert.equal(r.warnings, 1, 'the unused dark accent is only a warning');
+  fs.writeFileSync(path.join(proj, 'a.css'), ':root{--c:#F0EAD6} h1{font-family:Georgia}');
+  r = checkHueConformance(proj, m);
+  assert.equal(r.errors, 3, 'coverage below 50% plus two missing fonts');
+});
+
+test('forge design use / check / hue-validate / sloplint end to end with stub skills', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-home-'));
+  const proj = tmpProject();
+  const mk = (name, files) => { const d = path.join(home, '.claude', 'skills', name); fs.mkdirSync(path.join(d, 'scripts'), { recursive: true }); fs.writeFileSync(path.join(d, 'SKILL.md'), `---\nname: ${name}\n---\n`); for (const [f, c] of Object.entries(files)) fs.writeFileSync(path.join(d, f), c); return d; };
+  mk('hue', { 'scripts/validate.mjs': 'console.log("hue-validate ran on " + process.argv[2]); process.exit(0);' });
+  mk('hallmark', { 'scripts/sloplint.mjs': 'console.log("sloplint args: " + process.argv.slice(2).join(" ")); process.exit(process.argv.includes("--bad") ? 1 : 0);' });
+  const gen = path.join(home, '.claude', 'skills', 'ledger-design');
+  fs.mkdirSync(gen, { recursive: true });
+  fs.writeFileSync(path.join(gen, 'SKILL.md'), '---\nname: ledger-design\n---\n');
+  fs.writeFileSync(path.join(gen, 'design-model.yaml'), HUE_YAML);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
+  const run = (...a) => spawnSync(process.execPath, [FORGE, ...a], { cwd: proj, env, encoding: 'utf8' });
+
+  assert.notEqual(run('design', 'use', path.join(home, 'nope')).status, 0);
+  const use = run('design', 'use', gen);
+  assert.equal(use.status, 0, use.stderr + use.stdout);
+  assert.match(use.stdout, /Playfair Display, PT Serif/);
+  assert.match(run('design', 'path').stdout, /ledger-design\/SKILL\.md/);
+
+  assert.equal(run('design', 'check').status, 1, 'code does not use the Hue tokens yet');
+  fs.writeFileSync(path.join(proj, 'app.css'), ':root{--c:#F0EAD6;--t:#0A0A0A;--a:#C8102E} h1{font-family:"Playfair Display"} p{font-family:"PT Serif"}');
+  const ok = run('design', 'check');
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.match(ok.stdout, /PASS design check \(Hue\)/);
+
+  const hv = run('design', 'hue-validate', gen);
+  assert.equal(hv.status, 0);
+  assert.match(hv.stdout, /hue-validate ran on .*ledger-design/);
+  const sl = run('design', 'sloplint', 'src/', '--render');
+  assert.equal(sl.status, 0);
+  assert.match(sl.stdout, /sloplint args: src\/ --render/);
+  assert.equal(run('design', 'sloplint', '--bad').status, 1, 'the linter exit code passes through');
+
+  const info = path.join(proj, '.interface-design');
+  fs.mkdirSync(info, { recursive: true });
+  fs.writeFileSync(path.join(info, 'system.md'), '# Design System\n');
+  assert.match(run('design', 'path').stdout, /Interface Design memory/);
 });

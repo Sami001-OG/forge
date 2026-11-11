@@ -42,6 +42,7 @@ export function validatePlan(plan, project) {
   need(ENVS.has(plan.environment), 'environment must be local|remote|hybrid');
   need(plan.design_stack === undefined || typeof plan.design_stack === 'boolean', 'design_stack must be boolean');
   need(plan.design === undefined || (plan.design && typeof plan.design === 'object' && typeof plan.design.direction === 'string'), 'design must be an object with a direction string');
+  need(plan.design?.engine === undefined || ['uiuxpro', 'hue', 'hallmark'].includes(plan.design.engine), 'design.engine must be uiuxpro, hue, or hallmark (one design engine per product)');
   need(plan.stage_preset === undefined || STAGE_PRESETS[plan.stage_preset], `stage_preset must be one of: ${Object.keys(STAGE_PRESETS).join(', ')}`);
   need(Array.isArray(plan.axes) && plan.axes.length >= 3, 'axes: at least 3 rubric axes required');
   const axisIds = new Set();

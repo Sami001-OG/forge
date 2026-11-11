@@ -150,6 +150,17 @@
         "tailwind.config.*"
       ],
       "note": "does the code use the generated design system's palette and fonts (core palette roles and both fonts are errors)"
+    },
+    "hallmark-sloplint": {
+      "cmd": "{forge} design sloplint src/",
+      "tool": "builtin",
+      "scope": [
+        "src/**",
+        "public/**",
+        "**/*.css",
+        "**/*.html"
+      ],
+      "note": "ONLY for pages built with Hallmark: it enforces Hallmark's own house style (stamp comment, overflow-x clip, tokenised colours) and fails ordinary pages"
     }
   }
 }
