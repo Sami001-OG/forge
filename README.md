@@ -176,6 +176,30 @@ Forge fingerprints the files each acceptance criterion and hard check depends on
 - **Shared tool cache:** tools install once per machine in `~/.forge/tools` (each tool isolated and version-pinned), not once per project.
 - **Incremental verification and `/forge:tweak`:** see above.
 
+## Use Forge in OpenCode
+
+Forge also runs in [OpenCode](https://opencode.ai). The CLI, gate, catalog and design stack are the same; only the host glue differs.
+
+```
+git clone https://github.com/Sami001-OG/forge && node forge/scripts/opencode-install.mjs --global
+# or without cloning:  npx -y github:Sami001-OG/forge --global
+# per project instead: node forge/scripts/opencode-install.mjs --project .
+# optional cheaper verifiers: add --verifier-model provider/model
+```
+
+Restart OpenCode, then use `/forge-build`, `/forge-ui`, `/forge-tweak`, `/forge-status`, `/forge-abort`, `/forge-doctor`. Remove it with `--uninstall`.
+
+| Claude Code | OpenCode |
+|---|---|
+| Stop hook blocks the stop and feeds the next prompt | A plugin watches `session.idle` on the main session and sends the gate's instruction as the next prompt (subagent sessions are never driven) |
+| `/forge:build` | `/forge-build` (commands cannot contain `:`) |
+| Subagents `forge:supervisor`, ... with a tool allowlist | Subagents `forge-supervisor`, ... made read-only with `permission: edit: deny` |
+| PreToolUse guard hook | `tool.execute.before` guard |
+| SessionStart PATH hook | `shell.env` hook |
+| Design skills in `~/.claude/skills` | OpenCode loads `~/.claude/skills` automatically, so the same skills work |
+
+The installer copies a private Forge runtime next to OpenCode's config, so the plugin has no dependencies. Verified against OpenCode 1.19: it loads all agents, commands and the plugin, and `node scripts/dev/opencode-e2e.mjs <opencode> <sdk>` drives a real loop (idle, gate, next prompt) against a live OpenCode server with a fake LLM. Not yet verified: a full build with a real model, and parallel subagent launches in one message.
+
 ## UI/UX mode (`/forge:ui`)
 
 For websites, apps and dashboards, Forge adds a design stack and a deterministic UI audit on top of the normal loop:
@@ -239,6 +263,7 @@ node <plugin>/scripts/forge.mjs shot http://localhost:3000 --mobile
 ```
 .claude-plugin/   plugin.json, marketplace.json
 commands/         /forge:build, ui, tweak, status, abort, doctor
+opencode/         OpenCode plugin shim (installed by scripts/opencode-install.mjs)
 agents/           planner, supervisor, critic, toolsmith
 hooks/hooks.json  Stop hook (the loop), PreToolUse guard, SessionStart PATH
 scripts/          forge.mjs CLI, gate.mjs, guard.mjs, env-hook.mjs, shot.mjs, lib/

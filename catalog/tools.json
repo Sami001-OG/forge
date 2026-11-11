@@ -3366,7 +3366,7 @@
     },
     "manual": "https://github.com/emilkowalski/skill"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['emil-design-eng'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['emil-design-eng'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3393,7 +3393,7 @@
     },
     "manual": "https://github.com/Leonxlnx/taste-skill"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['design-taste-frontend'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['design-taste-frontend'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3420,7 +3420,7 @@
     },
     "manual": "https://github.com/pbakaus/impeccable"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['impeccable'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['impeccable'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3447,7 +3447,7 @@
     },
     "manual": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['ui-ux-pro-max'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['ui-ux-pro-max'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3474,7 +3474,7 @@
     },
     "manual": "https://github.com/Nutlope/hallmark"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hallmark'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hallmark'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3501,7 +3501,7 @@
     },
     "manual": "https://github.com/dominikmartn/hue"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hue'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['hue'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3528,7 +3528,7 @@
     },
     "manual": "https://github.com/Dammyjay93/interface-design"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['interface-design'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['interface-design'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 2,
@@ -3555,7 +3555,7 @@
     },
     "manual": "https://github.com/jakubkrehel/skills"
    },
-   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['better-typography'];process.exit(n.some(x=>[p.join(o.homedir(),'.claude','skills',x),p.join(process.cwd(),'.claude','skills',x)].some(d=>fs.existsSync(p.join(d,'SKILL.md'))))?0:1)\""
+   "verify": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const n=['better-typography'];const r=[['.claude','skills'],['.config','opencode','skills'],['.config','opencode','skill'],['.agents','skills']].map(a=>p.join(o.homedir(),...a)).concat([['.claude','skills'],['.opencode','skills'],['.opencode','skill'],['.agents','skills']].map(a=>p.join(process.cwd(),...a)));process.exit(n.some(x=>r.some(d=>fs.existsSync(p.join(d,x,'SKILL.md'))))?0:1)\""
   },
   {
    "tier": 0,

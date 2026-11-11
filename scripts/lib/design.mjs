@@ -30,7 +30,13 @@ export const ROLE = {
   'better-typography': 'type scale, spacing, wrapping, OpenType, truncation (Better Typography, Jakub Krehel)',
 };
 
-export const skillRoots = (project) => [path.join(os.homedir(), '.claude', 'skills'), path.join(project, '.claude', 'skills')];
+// Claude Code reads ~/.claude/skills; OpenCode reads that too, plus its own and ~/.agents/skills.
+export const skillRoots = (project) => [
+  path.join(os.homedir(), '.claude', 'skills'), path.join(project, '.claude', 'skills'),
+  path.join(os.homedir(), '.config', 'opencode', 'skills'), path.join(os.homedir(), '.config', 'opencode', 'skill'),
+  path.join(os.homedir(), '.agents', 'skills'),
+  path.join(project, '.opencode', 'skills'), path.join(project, '.opencode', 'skill'), path.join(project, '.agents', 'skills'),
+];
 
 export function findSkills(project) {
   const out = {};

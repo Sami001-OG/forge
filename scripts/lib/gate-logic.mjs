@@ -168,7 +168,7 @@ function advance(st, nowMs, headline) {
 // Re-evaluating the same round (for example after a confirm run) must replace its entry, not duplicate it.
 const upsertRound = (list = [], entry) => [...list.filter((x) => x.round !== entry.round), entry].slice(-100);
 
-export function decide(input, art, nowMs, opts = {}) {
+function decideCore(input, art, nowMs, opts = {}) {
   const cli = opts.cli || 'forge';
   const st = structuredClone(input);
   if (st.status !== 'running' && st.status !== 'delivering') return { allow: true, state: st };
@@ -269,4 +269,13 @@ export function decide(input, art, nowMs, opts = {}) {
   st.round += 1;
   st.round_started_at = nowMs;
   return { allow: false, state: st, reason: clip(`${fb}${stallNote}\n\nFix everything above, then end your turn; verification restarts as round ${st.round}.`, MAX_REASON) };
+}
+
+// The gate's wording names Claude Code's subagents and tools; other hosts (OpenCode) name them differently.
+export const toOpenCodeText = (t) => String(t).replace(/forge:(planner|supervisor|critic|toolsmith)/g, 'forge-$1').replace(/Agent tool/g, 'Task tool');
+
+export function decide(input, art, nowMs, opts = {}) {
+  const r = decideCore(input, art, nowMs, opts);
+  if (opts.host === 'opencode' && r.reason) r.reason = toOpenCodeText(r.reason);
+  return r;
 }
