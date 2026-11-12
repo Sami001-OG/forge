@@ -58,6 +58,7 @@ export function loadArtifacts(project, round) {
     critic: readJson(artifactFile(project, 'verdict', round, 'critic'), null),
     signoff: readJson(artifactFile(project, 'signoff', round), null),
     scope: readJson(path.join(forgeDir(project), `scope-${round}.json`), null),
+    supShards: (() => { try { return fs.readdirSync(forgeDir(project)).map((f) => f.match(new RegExp(`^verdict-${round}-supervisor\\.shard-(\\d+)\\.json$`))).filter(Boolean).map((m) => Number(m[1])); } catch { return []; } })(),
     delivery: fs.existsSync(path.join(forgeDir(project), 'DELIVERY.md')),
   };
 }

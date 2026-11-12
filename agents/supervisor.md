@@ -20,6 +20,10 @@ You may run at the same time as the critic. Never wait for it and never read its
 
 Machine-judged checks already ran; do not redo what a check proves. Use `forge visual <url> --name <n>` for visual regression and `forge assert-json <file> <path> ">=" <n>` to gate on a tool's JSON report.
 
+## Pipeline: shards and slow checks
+- You may be one of several supervisors launched at once. If your prompt names a shard (`shard i/K`), assess **only** the criteria listed in `scope.shards[i-1]` (see `forge status --json`) and record with `forge verdict supervisor --shard <i-1>`. The lead shard (`--shard 0`) also scores all axes and files the overall issues; other shards omit `axes`. Do not wait for the other shards: the CLI merges the verdicts when the last one arrives.
+- Slow checks may still be running in parallel with you. Observe the product first; before citing a `check:<id>` as evidence, run `forge wait checks` (it returns when every check has reported).
+
 ## Incremental verification (do not redo what is already verified)
 Re-verifying everything every round wastes hours. Forge fingerprints the files each criterion depends on, so:
 - `forge status --json` shows this round's `scope`: `dirty_criteria` (changed or never passed: assess these) and `carried_criteria` (unchanged since they last passed: do NOT re-observe them; they are carried over automatically).

@@ -1,44 +1,51 @@
 {
   "version": 1,
-  "note": "Machine-judged hard checks. Prefer these over asking the supervisor to eyeball something. {forge} expands to the forge CLI, {url} is the running app's URL (replace it in the plan), {changed} is the list of changed files (changed_cmd only).",
+  "note": "Machine-judged hard checks. Prefer these over asking the supervisor to eyeball something. {forge} expands to the forge CLI, {url} is the running app's URL (replace it in the plan), {changed} is the list of changed files (changed_cmd only). tier: fast checks run first and gate everything (a failure stops the round immediately); slow checks run in parallel with the reviewers. Use after: [ids] to order dependent checks.",
   "templates": {
     "eslint": {
       "cmd": "{forge} exec -- eslint . --max-warnings 0",
       "tool": "eslint",
-      "stack": "js/ts"
+      "stack": "js/ts",
+      "tier": "fast"
     },
     "typescript": {
       "cmd": "{forge} exec -- tsc --noEmit",
       "tool": "typescript",
-      "stack": "ts"
+      "stack": "ts",
+      "tier": "fast"
     },
     "vitest": {
       "cmd": "{forge} exec -- vitest run",
       "changed_cmd": "{forge} exec -- vitest related --run {changed}",
       "tool": "vitest",
       "stack": "js/ts",
-      "note": "impact-selected after the first full run in a stage; confirmed once by the full suite before approval"
+      "note": "impact-selected after the first full run in a stage; confirmed once by the full suite before approval",
+      "tier": "fast"
     },
     "jest": {
       "cmd": "{forge} exec -- jest",
       "changed_cmd": "{forge} exec -- jest --findRelatedTests {changed}",
       "tool": "jest",
-      "stack": "js/ts"
+      "stack": "js/ts",
+      "tier": "fast"
     },
     "pytest": {
       "cmd": "{forge} exec -- python -m pytest -q",
       "tool": "pytest",
-      "stack": "python"
+      "stack": "python",
+      "tier": "fast"
     },
     "ruff": {
       "cmd": "{forge} exec -- ruff check .",
       "tool": "ruff",
-      "stack": "python"
+      "stack": "python",
+      "tier": "fast"
     },
     "mypy": {
       "cmd": "{forge} exec -- mypy .",
       "tool": "mypy",
-      "stack": "python"
+      "stack": "python",
+      "tier": "fast"
     },
     "visual-home": {
       "cmd": "{forge} visual {url} --name home --threshold 0.5",
@@ -48,7 +55,8 @@
         "public/**",
         "index.html"
       ],
-      "note": "first run records the baseline; use --update after an intentional visual change"
+      "note": "first run records the baseline; use --update after an intentional visual change",
+      "tier": "slow"
     },
     "visual-home-mobile": {
       "cmd": "{forge} visual {url} --name home --mobile --threshold 0.5",
@@ -57,7 +65,8 @@
         "src/**",
         "public/**",
         "index.html"
-      ]
+      ],
+      "tier": "slow"
     },
     "lighthouse-budget": {
       "cmd": "{forge} exec -- lighthouse {url} --quiet --output=json --output-path=.forge/evidence/lighthouse.json --chrome-flags=\"--headless=new --no-sandbox\" && {forge} assert-json .forge/evidence/lighthouse.json categories.performance.score \">=\" 0.9 && {forge} assert-json .forge/evidence/lighthouse.json categories.accessibility.score \">=\" 0.95",
@@ -66,7 +75,8 @@
         "src/**",
         "public/**"
       ],
-      "note": "slow: give it a scope so it is carried over when its files are unchanged"
+      "note": "slow: give it a scope so it is carried over when its files are unchanged",
+      "tier": "slow"
     },
     "axe": {
       "cmd": "{forge} exec -- axe {url} --exit",
@@ -74,25 +84,29 @@
       "scope": [
         "src/**",
         "public/**"
-      ]
+      ],
+      "tier": "slow"
     },
     "bundle-size": {
       "cmd": "{forge} exec -- size-limit",
       "tool": "size-limit",
       "scope": [
         "src/**"
-      ]
+      ],
+      "tier": "fast"
     },
     "semgrep": {
       "cmd": "{forge} exec -- semgrep scan --config auto --error --quiet",
       "tool": "semgrep",
       "scope": [
         "src/**"
-      ]
+      ],
+      "tier": "slow"
     },
     "gitleaks": {
       "cmd": "{forge} exec -- gitleaks detect --no-banner",
-      "tool": "gitleaks"
+      "tool": "gitleaks",
+      "tier": "fast"
     },
     "pip-audit": {
       "cmd": "{forge} exec -- pip-audit",
@@ -100,7 +114,8 @@
       "scope": [
         "requirements*.txt",
         "pyproject.toml"
-      ]
+      ],
+      "tier": "slow"
     },
     "npm-audit": {
       "cmd": "npm audit --audit-level=high",
@@ -108,14 +123,16 @@
       "scope": [
         "package.json",
         "package-lock.json"
-      ]
+      ],
+      "tier": "slow"
     },
     "links": {
       "cmd": "{forge} exec -- lychee --no-progress README.md docs",
       "tool": "lychee",
       "scope": [
         "**/*.md"
-      ]
+      ],
+      "tier": "slow"
     },
     "uiaudit": {
       "cmd": "{forge} uiaudit {url} --pages / --max-warnings 10",
@@ -126,7 +143,8 @@
         "index.html",
         "**/*.css"
       ],
-      "note": "screenshots at 375/768/1440, dark mode, reduced motion, keyboard focus, tap targets, motion hygiene; errors fail, warnings are capped"
+      "note": "screenshots at 375/768/1440, dark mode, reduced motion, keyboard focus, tap targets, motion hygiene; errors fail, warnings are capped",
+      "tier": "slow"
     },
     "impeccable-detect": {
       "cmd": "{forge} exec -- impeccable detect src/",
@@ -137,7 +155,8 @@
         "**/*.css",
         "**/*.html"
       ],
-      "note": "61 deterministic rules incl. AI-generated UI tells; exit code 2 on findings"
+      "note": "61 deterministic rules incl. AI-generated UI tells; exit code 2 on findings",
+      "tier": "fast"
     },
     "design-conformance": {
       "cmd": "{forge} design check",
@@ -149,7 +168,8 @@
         "**/*.html",
         "tailwind.config.*"
       ],
-      "note": "does the code use the generated design system's palette and fonts (core palette roles and both fonts are errors)"
+      "note": "does the code use the generated design system's palette and fonts (core palette roles and both fonts are errors)",
+      "tier": "fast"
     },
     "hallmark-sloplint": {
       "cmd": "{forge} design sloplint src/",
@@ -160,7 +180,8 @@
         "**/*.css",
         "**/*.html"
       ],
-      "note": "ONLY for pages built with Hallmark: it enforces Hallmark's own house style (stamp comment, overflow-x clip, tokenised colours) and fails ordinary pages"
+      "note": "ONLY for pages built with Hallmark: it enforces Hallmark's own house style (stamp comment, overflow-x clip, tokenised colours) and fails ordinary pages",
+      "tier": "fast"
     }
   }
 }

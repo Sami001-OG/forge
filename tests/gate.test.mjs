@@ -13,10 +13,16 @@ test('inactive states allow stop', () => {
   }
 });
 
-test('missing artifacts: asks for checks and the supervisor; the critic waits until the supervisor approves', () => {
+test('nothing recorded yet: only the machine checks are requested (no reviewer until they pass)', () => {
   const r = decide(makeState(), empty, NOW, { cli });
   assert.equal(r.allow, false);
-  assert.match(r.reason, /checks/);
+  assert.match(r.reason, /Run the machine checks/);
+  assert.doesNotMatch(r.reason, /subagent_type/);
+});
+
+test('checks passed, no supervisor yet: the supervisor is launched; the critic waits until it approves', () => {
+  const s = makeState();
+  const r = decide(s, { ...empty, checks: { round: 1, results: [{ id: 'smoke', ok: true, code: 0, tail: '' }], all_pass: true } }, NOW, { cli });
   assert.match(r.reason, /subagent_type "forge:supervisor"/);
   assert.doesNotMatch(r.reason, /subagent_type "forge:critic"/);
 });
@@ -44,18 +50,19 @@ test('supervisor rejected: the critic is skipped and the builder gets feedback i
 test('parallel launch when approval is likely (previous supervisor approved, or final stage)', () => {
   for (const st of [makeState({ last_sup_approved: true }), makeState({ stage_idx: 4 })]) {
     const r = decide(st, { ...empty, checks: { round: 1, results: [], all_pass: true } }, NOW, { cli });
-    assert.match(r.reason, /BOTH subagents in ONE message/);
+    assert.match(r.reason, /Launch ALL of these in ONE message/);
     assert.match(r.reason, /subagent_type "forge:supervisor"/);
     assert.match(r.reason, /subagent_type "forge:critic"/);
   }
 });
 
 test('verifier model is opt-in and never applies to the final stage', () => {
-  const early = decide(makeState({ opts: { bar: null, verifier_model: 'haiku' } }), empty, NOW, { cli });
+  const passed = { ...empty, checks: { round: 1, results: [], all_pass: true } };
+  const early = decide(makeState({ opts: { bar: null, verifier_model: 'haiku' } }), passed, NOW, { cli });
   assert.match(early.reason, /Use model "haiku"/);
-  const last = decide(makeState({ stage_idx: 4, opts: { bar: null, verifier_model: 'haiku' } }), empty, NOW, { cli });
+  const last = decide(makeState({ stage_idx: 4, opts: { bar: null, verifier_model: 'haiku' } }), passed, NOW, { cli });
   assert.doesNotMatch(last.reason, /Use model/);
-  assert.doesNotMatch(decide(makeState(), empty, NOW, { cli }).reason, /Use model/);
+  assert.doesNotMatch(decide(makeState(), passed, NOW, { cli }).reason, /Use model/);
 });
 
 test('round timing is recorded from artifact timestamps', () => {

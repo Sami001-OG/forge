@@ -19,7 +19,7 @@ export function normalizePlan(plan, opts = {}) {
     const n = p.stages.length;
     p.stages.forEach((s, i) => { if (i >= n - 3) p.bars[s.id] = Math.max(p.bars[s.id] ?? 0, opts.bar); });
   }
-  p.checks = (p.checks || []).map((c) => ({ timeout_s: 600, ...c }));
+  p.checks = (p.checks || []).map((c) => ({ timeout_s: 600, tier: 'fast', ...c }));
   p.references ||= [];
   if (opts.ui) p.design_stack = true;
   p.ignore = Array.isArray(p.ignore) ? p.ignore : [];
@@ -80,10 +80,13 @@ export function validatePlan(plan, project) {
     kids.add(k.id);
     need(typeof k.cmd === 'string' && k.cmd.trim(), `check ${k.id}: cmd required`);
     need(!k.stage || stageIds.has(k.stage), `check ${k.id}: unknown stage ${k.stage}`);
+    need(k.tier === undefined || ['fast', 'slow'].includes(k.tier), `check ${k.id}: tier must be fast or slow`);
+    need(k.after === undefined || (Array.isArray(k.after) && k.after.every((x) => typeof x === 'string')), `check ${k.id}: after must be an array of check ids`);
     need(k.changed_cmd === undefined || (typeof k.changed_cmd === 'string' && k.changed_cmd.includes('{changed}')), `check ${k.id}: changed_cmd must be a string containing {changed}`);
     need(k.changed_match === undefined || (Array.isArray(k.changed_match) && k.changed_match.every((x) => typeof x === 'string')), `check ${k.id}: changed_match must be an array of globs`);
     need(k.scope === undefined || (Array.isArray(k.scope) && k.scope.length && k.scope.every((x) => typeof x === 'string')), `check ${k.id}: scope must be a non-empty array of path globs (omit it to always run)`);
   }
+  for (const k of plan.checks || []) for (const dep of k.after || []) need(kids.has(dep) && dep !== k.id, `check ${k.id}: after refers to unknown check ${dep}`);
   need((plan.checks || []).some((k) => !k.stage || k.stage === plan.stages[0].id), `at least one check must apply from the first stage (${plan.stages[0].id})`);
   for (const b of plan.bundles || []) need(b === 'core' || bundles[b], `unknown bundle ${b} (known: ${Object.keys(bundles).join(', ')})`);
   return errs;

@@ -12,6 +12,14 @@ export const barFor = (plan, stageId) => (typeof plan.bars?.[stageId] === 'numbe
 
 export const applicableCriteria = (plan, stageIdx) => plan.criteria.filter((c) => stageIndex(plan, c.stage) <= stageIdx);
 export const applicableChecks = (plan, stageIdx) => plan.checks.filter((c) => !c.stage || stageIndex(plan, c.stage) <= stageIdx);
+export const lastStage = (st) => st.stage_idx === st.plan.stages.length - 1;
+// In --fast mode the slow tier (e2e, Lighthouse, scanners, visual) only runs at the final stage.
+export const activeChecks = (st) => applicableChecks(st.plan, st.stage_idx).filter((c) => !(st.opts?.fast && !lastStage(st) && c.tier === 'slow'));
+const missingSlow = (st, art) => {
+  if (!art.checks) return [];
+  const have = new Set((art.checks.results || []).map((r) => r.id));
+  return activeChecks(st).filter((c) => c.tier === 'slow' && !have.has(c.id)).map((c) => c.id);
+};
 
 // Score every rubric axis as the MIN of supervisor and critic, so both must be convinced.
 export function evaluate(state, art) {
@@ -21,7 +29,7 @@ export function evaluate(state, art) {
   const problems = [];
   const { checks: chk, supervisor: sup, critic: cri } = art;
 
-  const needChecks = applicableChecks(plan, state.stage_idx).map((c) => c.id);
+  const needChecks = activeChecks(state).map((c) => c.id);
   const ran = new Set((chk.results || []).map((r) => r.id));
   const missingChecks = needChecks.filter((id) => !ran.has(id));
   const failedChecks = (chk.results || []).filter((r) => !r.ok);
@@ -100,6 +108,7 @@ const verifierModel = (st) => (st.opts?.verifier_model && st.stage_idx < st.plan
 
 // The critic is the expensive adversarial pass: it only runs when the supervisor is satisfied (or approval is likely).
 export function criticNeeded(st, art) {
+  if (st.opts?.fast && !lastStage(st)) return false; // --fast: the adversarial pass only at the final stage
   if (art.supervisor) return art.supervisor.verdict === 'approve';
   return st.stage_idx === st.plan.stages.length - 1 || !!st.last_sup_approved; // launch in parallel up front
 }
@@ -109,16 +118,30 @@ function protocol(state, art, cli, wantCritic) {
   const sid = state.plan.stages[state.stage_idx].id;
   const model = verifierModel(state);
   const modelNote = model ? ` Use model "${model}" for this delegation (the Agent tool's model parameter, if it supports one).` : '';
-  const sup = `Delegate to the forge:supervisor subagent (Agent tool, subagent_type "forge:supervisor"). Prompt: "Verify round ${r}, stage ${sid}, per the forge protocol." It records its verdict itself.${modelNote}`;
-  const cri = `Delegate to the forge:critic subagent (Agent tool, subagent_type "forge:critic"). Prompt: "Attack round ${r}, stage ${sid}, per the forge protocol." It records its verdict itself.`;
-  const steps = [];
-  if (!art.checks) steps.push(`Run the hard checks: ${cli} checks`);
-  const needSup = !art.supervisor;
-  const needCri = wantCritic && !art.critic;
-  if (needSup && needCri) steps.push(`Launch BOTH subagents in ONE message (two Agent tool calls in the same response) so they run in parallel:\n   a) ${sup}\n   b) ${cri}`);
-  else if (needSup) steps.push(sup + ' (The critic is only needed if the supervisor approves.)');
-  else if (needCri) steps.push(cri + ' (The supervisor approved; the adversarial pass is now required.)');
-  return steps.map((x, i) => `${i + 1}. ${x}`).join('\n');
+  const hasSlow = activeChecks(state).some((c) => c.tier === 'slow');
+  const K = art.scope?.shards?.length || 1;
+  const done = new Set(art.supShards || []);
+
+  // Phase A: machine checks only. A failing build is never worth reviewing, so nothing else is asked for yet.
+  if (!art.checks) {
+    return `1. Run the machine checks: ${cli} checks${hasSlow ? ' --tier fast' : ''}\n2. End your turn. If a check fails you will get the fix list straight away; if they pass you will be told which reviewers to launch. Nothing is reviewed until the machine checks pass.`;
+  }
+
+  // Phase B: everything that can run at the same time, launched in one message.
+  const items = [];
+  const slow = missingSlow(state, art);
+  if (slow.length) items.push(`Run the slow checks (${slow.join(', ')}): ${cli} checks --tier slow`);
+  if (!art.supervisor) {
+    for (let i = 0; i < K; i++) {
+      if (done.has(i)) continue;
+      const shard = K > 1 ? `, shard ${i + 1}/${K} (assess only the criteria in scope.shards[${i}]${i === 0 ? '; as the lead shard you also score the axes' : ''}; record with --shard ${i})` : '';
+      items.push(`Delegate to the forge:supervisor subagent (Agent tool, subagent_type "forge:supervisor"). Prompt: "Verify round ${r}, stage ${sid}${shard}, per the forge protocol." It records its verdict itself.${modelNote}`);
+    }
+  }
+  if (wantCritic && !art.critic) items.push(`Delegate to the forge:critic subagent (Agent tool, subagent_type "forge:critic"). Prompt: "Attack round ${r}, stage ${sid}, per the forge protocol." It records its verdict itself.`);
+  if (!items.length) return '';
+  if (items.length === 1) return `1. ${items[0]}${!art.supervisor && !wantCritic ? ' (The critic is only needed if the supervisor approves.)' : ''}${art.supervisor && wantCritic && !art.critic ? ' (The supervisor approved; the adversarial pass is now required.)' : ''}`;
+  return `1. Launch ALL of these in ONE message (parallel tool calls in the same response) so they run at the same time:\n${items.map((x, i) => `   ${String.fromCharCode(97 + i)}) ${x}`).join('\n')}`;
 }
 
 function roundTiming(st, art) {
@@ -195,12 +218,27 @@ function decideCore(input, art, nowMs, opts = {}) {
 
   const header = `[forge] Round ${st.round} · stage ${st.stage_idx + 1}/${st.plan.stages.length} "${st.plan.stages[st.stage_idx].id}"`;
 
-  // Verification protocol incomplete: ask for the missing steps (all at once). The critic only when it is needed.
+  // Fail fast: when a machine check fails there is nothing worth reviewing yet (the supervisor cannot observe a broken build).
+  if (art.checks && !art.supervisor && (art.checks.results || []).some((r) => !r.ok)) {
+    const failed = art.checks.results.filter((r) => !r.ok);
+    const sig = failed.map((r) => r.id).sort().join(',');
+    st.ff = st.ff && st.ff.sig === sig ? { sig, n: st.ff.n + 1 } : { sig, n: 1 };
+    st.history = upsertRound(st.history, { round: st.round, stage: st.plan.stages[st.stage_idx].id, score: null, approved: false, failfast: true });
+    if (st.ff.n >= 6) return toDelivering(st, 'stalled', cli, `[forge] the same machine check(s) (${sig}) failed ${st.ff.n} rounds in a row.`);
+    const note = st.ff.n >= 3 ? `\n\nSTALL: this check has failed ${st.ff.n} rounds in a row. Do not keep patching the same way: find the root cause (read the failing output carefully, reproduce it in isolation), or change approach.` : '';
+    const list = failed.map((r, i) => `${i + 1}. check FAILED: ${r.id} (exit ${r.code}) ${clip((r.tail || '').trim().split('\n').slice(-8).join(' | '), 500)}`).join('\n');
+    st.round += 1;
+    st.round_started_at = nowMs;
+    return { allow: false, state: st, reason: clip(`${header}\nREJECTED by the machine checks. No review was run, because a failing build cannot be reviewed.\nFix list, in priority order:\n${list}${note}\n\nFix these, then end your turn; the checks run again as round ${st.round}.`, MAX_REASON) };
+  }
+
   const wantCritic = criticNeeded(st, art);
-  if (!art.checks || !art.supervisor || (wantCritic && !art.critic)) {
-    const reason = `${header}\nBuild work for this round is not accepted until it is verified. Do these now, in order, then end your turn:\n${protocol(st, art, cli, wantCritic)}`;
+  const stillSlow = missingSlow(st, art).length > 0;
+  if (!art.checks || !art.supervisor || (wantCritic && !art.critic) || stillSlow) {
+    const reason = `${header}\n${!art.checks ? 'Build work for this round is not accepted until it is verified.' : 'The machine checks passed. Now the review runs in parallel.'} Do these now, then end your turn:\n${protocol(st, art, cli, wantCritic)}`;
     return { allow: false, state: st, reason };
   }
+  if (st.ff) st.ff = null; // a round that got past the machine checks resets the streak
 
   const ev = evaluate(st, art);
   const plan = st.plan;

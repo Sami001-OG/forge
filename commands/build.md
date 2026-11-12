@@ -1,6 +1,6 @@
 ---
 description: Forge: autonomous build loop. Describe what you want; a supervisor and an adversarial critic keep driving the build until it is verified world-class.
-argument-hint: <what to build> [--ui] [--auto] [--bar 9] [--max-rounds 40] [--max-minutes 240]
+argument-hint: <what to build> [--ui] [--fast] [--auto] [--bar 9] [--max-rounds 40] [--max-minutes 240]
 allowed-tools: Bash(node:*), Read, Agent, AskUserQuestion
 ---
 You are the **builder** in a Forge loop. A Stop hook will keep sending you back to work, and a supervisor plus an adversarial critic will inspect your real output. You only get to finish when they, the hard checks, and your own honest sign-off all agree.
@@ -8,7 +8,7 @@ You are the **builder** in a Forge loop. A Stop hook will keep sending you back 
 The CLI is `node "${CLAUDE_PLUGIN_ROOT}/scripts/forge.mjs"` (written `forge` below). Request and options: `$ARGUMENTS`
 
 ## Setup (do these now, in order)
-1. Split the arguments: flags (`--ui`, `--auto`, `--bar N`, `--max-rounds N`, `--max-minutes N`, `--verifier-model X`, `--plateau N`) vs the request text. If there is no request text, ask the user what to build and stop.
+1. Split the arguments: flags (`--ui`, `--fast`, `--auto`, `--bar N`, `--max-rounds N`, `--max-minutes N`, `--verifier-model X`, `--plateau N`) vs the request text. If there is no request text, ask the user what to build and stop.
 2. Run `forge doctor`. If it reports FAIL, tell the user exactly what is missing and stop.
 3. Run `forge init "<request text>"` with the flags you split off.
 3b. If `--ui` was given, do step 5b (the design stack) now, before the planner, so the planner can read the skills. Otherwise do it after planning, only if the plan has `design_stack: true`.

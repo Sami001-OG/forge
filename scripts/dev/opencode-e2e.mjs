@@ -10,7 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const [OC, SDK] = process.argv.slice(2);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-oc-e2e-'));
-const home = path.join(tmp, 'home'), proj = path.join(tmp, 'proj');
+// FORGE_E2E_HOME keeps OpenCode's package cache between runs (the first boot downloads the fake provider package and can be slow).
+const home = process.env.FORGE_E2E_HOME || path.join(tmp, 'home'), proj = path.join(tmp, 'proj');
 fs.mkdirSync(proj, { recursive: true });
 const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local/share'), XDG_CACHE_HOME: path.join(home, '.cache'), XDG_STATE_HOME: path.join(home, '.state'), CLAUDE_PROJECT_DIR: proj, FORGE_TOOLS_DIR: path.join(proj, '.forge', 'tools') };
 const run = (cmd, args, o = {}) => spawnSync(cmd, args, { env, cwd: proj, encoding: 'utf8', ...o });
@@ -60,7 +61,9 @@ const { createOpencodeClient } = await import(pathToFileURL(path.join(SDK, 'dist
 let ok = false, why = '';
 try {
   const client = createOpencodeClient({ baseUrl: `http://127.0.0.1:${port}`, directory: proj });
-  for (let i = 0; i < 60; i++) { try { await client.session.list(); break; } catch { await sleep(500); } }
+  let up = false;
+  for (let i = 0; i < 240 && !up; i++) { try { await client.session.list(); up = true; } catch { await sleep(500); } }
+  if (!up) throw new Error('opencode serve never became ready (first boot installs the fake provider package; check network). Log tail: ' + logs.split('\n').slice(-6).join(' | '));
   step('server answering');
   const s = await client.session.create({ body: { title: 'forge e2e' } });
   step('session created; sending prompt');
@@ -68,7 +71,7 @@ try {
   for (let i = 0; i < 90 && seen.length < 2; i++) await sleep(500);
   console.log(`LLM requests seen: ${seen.length}`);
   seen.forEach((t, i) => console.log(`  #${i + 1}: ${String(t).slice(0, 150).replace(/\n/g, ' ')}`));
-  ok = seen.length >= 2 && /\[forge\] Round 1/.test(seen[1]) && /forge-supervisor/.test(seen[1]) && /subagent_type|Task tool/.test(seen[1]);
+  ok = seen.length >= 2 && /\[forge\] Round 1/.test(seen[1]) && /Run the machine checks/.test(seen[1]) && /forge\.mjs/.test(seen[1]);
   why = ok ? '' : 'the second prompt was not the Forge gate instruction';
   const st = JSON.parse(fs.readFileSync(path.join(proj, '.forge', 'state.json'), 'utf8'));
   console.log(`state: status=${st.status} session_id=${st.session_id ? 'adopted' : 'none'} blocks=${st.blocks}`);

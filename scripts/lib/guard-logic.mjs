@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-const PROTECTED = /^(state\.json|checks-\d+\.json|verdict-\d+-(supervisor|critic)\.json|signoff-\d+\.json|scope-\d+\.json|approvals\.json|tools\.json)$/;
+const PROTECTED = /^(state\.json|checks-\d+\.json|verdict-\d+-(supervisor|critic)(\.shard-\d+)?\.json|signoff-\d+\.json|scope-\d+\.json|approvals\.json|tools\.json)$/;
 
 export function isProtectedPath(project, file) {
   if (!file) return false;

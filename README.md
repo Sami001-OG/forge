@@ -82,6 +82,7 @@ Forge plans, asks you one confirmation question (skip it with `--auto`), install
 | Flag | Default | Meaning |
 |---|---|---|
 | `--ui` | off | UI/UX mode (always on for `/forge:ui`): design stack plus UI audits |
+| `--fast` | off | Speed profile: slow checks and the critic only at the final stage, tighter caps |
 | `--auto` | off | No confirmation questions; installs only tier-0 tools |
 | `--bar N` | 9 | Quality bar (out of 10) for the last three stages |
 | `--max-rounds N` | 40 | Hard cap on verify rounds |
@@ -174,6 +175,12 @@ Forge fingerprints the files each acceptance criterion and hard check depends on
 - **Machine-judged first:** `catalog/check-templates.json` has ready checks (eslint, tsc, vitest, pytest, Lighthouse and axe budgets, Semgrep, gitleaks, bundle size). `forge visual <url> --name home` is pixel-diff regression against a stored baseline, and `forge assert-json <file> <path> ">=" <n>` turns any tool's JSON report into a pass/fail gate. The LLM only judges what code cannot.
 - **Diminishing returns:** if the only gaps left are within one point of the bar and rounds stop improving, Forge moves on (earlier stages, gaps recorded for later) or ships with an honest gap report (final stage). Rejection feedback is one numbered fix list, failing checks first.
 - **Shared tool cache:** tools install once per machine in `~/.forge/tools` (each tool isolated and version-pinned), not once per project.
+- **A pipeline, not a queue:**
+  - **Fail fast:** machine checks run first, in parallel. If any fails, the builder gets the fix list immediately and no supervisor or critic is run on a build that cannot be reviewed.
+  - **Tiers:** `fast` checks (build, types, lint, unit) gate everything; `slow` checks (e2e, Lighthouse, axe, visual, `uiaudit`, scanners) run at the same time as the reviewers. `after: [ids]` orders dependent checks; a dependent of a failed check is skipped, not run.
+  - **Parallel review:** once the machine checks pass, the slow checks, the supervisor(s) and, when approval is likely, the critic are launched in one message and run concurrently. Wall time is the slowest of them, not the sum.
+  - **Sharded supervisors:** with 5+ criteria to assess, the supervisor splits into 2-3 shards that run at the same time (the lead shard also scores the axes); the CLI merges the verdicts. `FORGE_SHARDS` caps it; `FORGE_JOBS` (default 4) caps parallel checks.
+  - **`--fast`:** slow checks and the critic only at the final stage, plateau after one stalled round, caps of 15 rounds and 2 hours. It trades some review depth for speed, never the bar.
 - **Incremental verification and `/forge:tweak`:** see above.
 
 ## Use Forge in OpenCode
@@ -198,7 +205,7 @@ Restart OpenCode, then use `/forge-build`, `/forge-ui`, `/forge-tweak`, `/forge-
 | SessionStart PATH hook | `shell.env` hook |
 | Design skills in `~/.claude/skills` | OpenCode loads `~/.claude/skills` automatically, so the same skills work |
 
-The installer copies a private Forge runtime next to OpenCode's config, so the plugin has no dependencies. Verified against OpenCode 1.19: it loads all agents, commands and the plugin, and `node scripts/dev/opencode-e2e.mjs <opencode> <sdk>` drives a real loop (idle, gate, next prompt) against a live OpenCode server with a fake LLM. Not yet verified: a full build with a real model, and parallel subagent launches in one message.
+The installer copies a private Forge runtime next to OpenCode's config, so the plugin has no dependencies. Verified against OpenCode 1.19: it loads all agents, commands and the plugin, and `node scripts/dev/opencode-e2e.mjs <opencode> <sdk>` drives a real loop (idle, gate, next prompt) against a live OpenCode server with a fake LLM (the first boot downloads a provider package and can be slow or flaky offline; set `FORGE_E2E_HOME` to keep its cache). Not yet verified: a full build with a real model, and parallel subagent launches in one message.
 
 ## UI/UX mode (`/forge:ui`)
 

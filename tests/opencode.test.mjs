@@ -111,11 +111,17 @@ test('plugin: main session going idle sends the gate instruction as the next pro
   assert.equal(s.sent[0].path.id, 'main');
   const text = s.sent[0].body.parts[0].text;
   assert.match(text, /\[forge\] Round 1/);
-  assert.match(text, /subagent_type "forge-supervisor"/);
-  assert.match(text, /Task tool/);
-  assert.doesNotMatch(text, /forge:supervisor|Agent tool/);
+  assert.match(text, /Run the machine checks/);
+  // once the machine checks pass, the next instruction launches the reviewers by their OpenCode names
+  fs.writeFileSync(path.join(s.project, '.forge', 'checks-1.json'), JSON.stringify({ round: 1, results: [{ id: 'smoke', ok: true, code: 0, tail: '' }], all_pass: true }));
+  s.advance(3000);
+  await s.hooks.event(idle('main'));
+  const text2 = s.sent[1].body.parts[0].text;
+  assert.match(text2, /subagent_type "forge-supervisor"/);
+  assert.match(text2, /Task tool/);
+  assert.doesNotMatch(text2, /forge:supervisor|Agent tool/);
   assert.equal(s.readState().session_id, 'main', 'the loop adopts the main session');
-  assert.equal(s.readState().blocks, 1);
+  assert.equal(s.readState().blocks, 2);
 });
 
 test('plugin: child sessions, other sessions, inactive loops and rapid repeats are ignored', async () => {
@@ -173,8 +179,9 @@ test('plugin: shell.env puts Forge tools on PATH', async () => {
 test('gate wording follows the host', () => {
   const st = makeState();
   const empty = { checks: null, supervisor: null, critic: null, signoff: null, delivery: false };
-  const claude = decide(st, empty, 1_060_000, { cli: 'forge' });
-  const oc = decide(st, empty, 1_060_000, { cli: 'forge', host: 'opencode' });
+  const passed = { ...empty, checks: { round: 1, results: [], all_pass: true } };
+  const claude = decide(st, passed, 1_060_000, { cli: 'forge' });
+  const oc = decide(st, passed, 1_060_000, { cli: 'forge', host: 'opencode' });
   assert.match(claude.reason, /forge:supervisor/);
   assert.match(oc.reason, /forge-supervisor/);
   assert.match(oc.reason, /Task tool/);

@@ -2,11 +2,13 @@
 // forge CLI: the only sanctioned writer of loop state. Used by commands, agents, and the gate.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { projectDir, forgeDir, readJson, writeJsonAtomic, readStdin, clip, toolEnv, toolsDir, toolPathDirs, posix } from './lib/util.mjs';
 import { loadState, saveState, loadArtifacts, artifactFile, DEFAULT_CAPS } from './lib/state.mjs';
-import { applicableChecks, applicableCriteria, stageBrief, barFor } from './lib/gate-logic.mjs';
+import { applicableChecks, applicableCriteria, activeChecks, stageBrief, barFor } from './lib/gate-logic.mjs';
+import { shardCount, partition, mergeSupervisor } from './lib/shards.mjs';
 import { normalizePlan, validatePlan, writeRubric } from './lib/plan.mjs';
 import { loadCatalog, loadBundles, loadTargets, search, pluginRoot } from './lib/catalog.mjs';
 import * as prov from './lib/provision.mjs';
@@ -26,7 +28,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const k = a.slice(2);
       const n = argv[i + 1];
-      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed', 'confirm', 'update', 'ui'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
+      if (n !== undefined && !n.startsWith('--') && !['auto', 'json', 'force', 'full', 'mobile', 'installed', 'confirm', 'update', 'ui', 'fast'].includes(k)) { flags[k] = n; i++; } else flags[k] = true;
     } else pos.push(a);
   }
   return { pos, flags };
@@ -35,6 +37,22 @@ const die = (m, code = 1) => { process.stderr.write(m + '\n'); process.exit(code
 const out = (m) => process.stdout.write(m + '\n');
 const need = () => { const s = loadState(project); if (!s) die('forge: no active loop in this project. Start one with /forge:build'); return s; };
 
+// Run a shell command without blocking, so independent checks can run at the same time.
+function runShell(cmd, { cwd, env, timeoutMs }) {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, { shell: true, cwd, env });
+    let out = '', killed = false;
+    const keep = (d) => { out += d; if (out.length > 4e6) out = out.slice(-2e6); };
+    child.stdout.on('data', keep); child.stderr.on('data', keep);
+    const timer = setTimeout(() => { killed = true; child.kill('SIGKILL'); }, timeoutMs);
+    child.on('error', (e) => { clearTimeout(timer); resolve({ status: -1, out: `${out}\n${e.message}` }); });
+    child.on('close', (code) => { clearTimeout(timer); resolve({ status: killed ? -1 : code, out: killed ? `${out}\n[timed out]` : out }); });
+  });
+}
+async function pool(items, limit, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => { while (i < items.length) { const k = i++; await fn(items[k], k); } }));
+}
 const expand = (c) => String(c).replaceAll('{forge}', `node "${posix(path.join(here, 'forge.mjs'))}"`);
 const bar = (n, w = 10) => '▮'.repeat(Math.max(0, Math.min(w, Math.round(n)))) + '▯'.repeat(w - Math.max(0, Math.min(w, Math.round(n))));
 
@@ -59,7 +77,7 @@ function statusText(s) {
     }
   }
   L.push(`this round: checks ${art.checks ? (art.checks.all_pass ? 'PASS' : 'FAIL') : '-'} · supervisor ${art.supervisor?.verdict || '-'} · critic ${art.critic?.verdict || '-'}`);
-  if (art.scope) L.push(`verification: ${art.scope.full ? `FULL (${art.scope.full_reason})` : `incremental, ${art.scope.changed_count} file(s) changed`} · re-verify ${art.scope.dirty_criteria.length}, carried ${art.scope.carried_criteria.length}${s.mode === 'tweak' ? ' · TWEAK mode' : ''}`);
+  if (art.scope) L.push(`verification: ${art.scope.full ? `FULL (${art.scope.full_reason})` : `incremental, ${art.scope.changed_count} file(s) changed`} · re-verify ${art.scope.dirty_criteria.length}, carried ${art.scope.carried_criteria.length}${art.scope.shards?.length > 1 ? ` · ${art.scope.shards.length} supervisor shards` : ''}${s.mode === 'tweak' ? ' · TWEAK mode' : ''}${s.opts?.fast ? ' · FAST mode' : ''}`);
   const T = s.timings || [];
   if (T.length) {
     const sum = (k) => T.reduce((a, t) => a + (t[k] || 0), 0);
@@ -80,7 +98,7 @@ async function main() {
   switch (cmd) {
     case 'init': {
       const prompt = pos.join(' ').trim();
-      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>] [--plateau N] [--ui]');
+      if (!prompt) die('usage: forge init "<what to build>" [--auto] [--bar N] [--max-rounds N] [--max-minutes N] [--verifier-model <alias>] [--plateau N] [--ui] [--fast]');
       const old = loadState(project);
       if (old && ['running', 'delivering'].includes(old.status) && !flags.force) die('forge: a loop is already active here. /forge:status to inspect, /forge:abort to cancel.');
       fs.mkdirSync(forgeDir(project), { recursive: true });
@@ -89,8 +107,9 @@ async function main() {
       const caps = { ...DEFAULT_CAPS };
       if (flags['max-rounds']) caps.max_rounds = parseInt(flags['max-rounds'], 10);
       if (flags['max-minutes']) caps.max_minutes = parseInt(flags['max-minutes'], 10);
+      if (flags.fast) { if (!flags['max-rounds']) caps.max_rounds = 15; if (!flags['max-minutes']) caps.max_minutes = 120; }
       const s = {
-        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null, ui: !!flags.ui, plateau: Number.isInteger(Number(flags.plateau)) && flags.plateau !== undefined ? Number(flags.plateau) : 2 },
+        version: 1, status: 'planning', prompt, auto: !!flags.auto, opts: { bar: flags.bar ? Number(flags.bar) : null, verifier_model: /^[A-Za-z0-9._:-]+$/.test(String(flags['verifier-model'] || '')) ? String(flags['verifier-model']) : null, ui: !!flags.ui, fast: !!flags.fast, plateau: Number.isInteger(Number(flags.plateau)) && flags.plateau !== undefined ? Number(flags.plateau) : (flags.fast ? 1 : 2) },
         created_at: Date.now(), caps, round: 1, stage_idx: 0, blocks: 0, idle_blocks: 0, last_fp: null,
         history: [], best: null, stall: { rounds_without_gain: 0, strategy_changes: 0 }, session_id: null, plan: null,
       };
@@ -127,6 +146,8 @@ async function main() {
       const s = need();
       if (s.status !== 'running') die(`forge: checks only run while the loop is running (status: ${s.status})`);
       const stageId = s.plan.stages[s.stage_idx].id;
+      const limit = Math.max(1, Number(flags.jobs) || Number(process.env.FORGE_JOBS) || Math.min(4, os.cpus().length));
+      const runCheck = (c, cmd) => runShell(expand(cmd), { cwd: project, env: toolEnv(project), timeoutMs: (c.timeout_s || 600) * 1000 });
       if (flags.confirm) {
         // Run the full suite for checks that only ran the tests related to the change.
         const file = artifactFile(project, 'checks', s.round);
@@ -135,105 +156,171 @@ async function main() {
         const imp = cur.results.filter((r) => r.impact);
         if (!imp.length) { out('forge: nothing to confirm (no impact-selected checks this round).'); break; }
         s.verified ||= { checks: {}, criteria: {} };
-        for (const r of imp) {
+        await pool(imp, limit, async (r) => {
           const c = s.plan.checks.find((x) => x.id === r.id);
           const t0 = Date.now();
-          const rr = spawnSync(expand(c.cmd), { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
+          const rr = await runCheck(c, c.cmd);
           const ok = rr.status === 0;
-          Object.assign(r, { ok, code: rr.status ?? 1, ms: Date.now() - t0, impact: false, confirmed: true, tail: clip(`${rr.stdout || ''}${rr.stderr || ''}`.slice(-2000), 2000) });
+          Object.assign(r, { ok, code: rr.status, ms: Date.now() - t0, impact: false, confirmed: true, tail: clip(rr.out.slice(-2000), 2000) });
           s.verified.checks[r.id] = { ...(s.verified.checks[r.id] || {}), ok, round: s.round, full_stage: ok ? stageId : undefined };
           out(`${ok ? 'PASS' : 'FAIL'} ${r.id} full suite (${r.ms}ms)`);
-          if (!ok) out(clip(`${rr.stdout || ''}${rr.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
-        }
+          if (!ok) out(clip(rr.out.trim().split('\n').slice(-12).join('\n'), 1200));
+        });
         cur.all_pass = cur.results.every((r) => r.ok);
         writeJsonAtomic(file, cur);
         saveState(project, s);
         out(`forge: confirm ${cur.all_pass ? 'PASSED' : 'FAILED'}. End your turn.`);
         break;
       }
+      const tier = ['fast', 'slow'].includes(flags.tier) ? flags.tier : 'all';
       const ignore = [...DEFAULT_IGNORE, ...(s.plan.ignore || [])];
       const shared = s.plan.shared?.length ? s.plan.shared : DEFAULT_SHARED;
-      const snap = takeSnapshot(project, ignore);
+      const scopeFile = path.join(forgeDir(project), `scope-${s.round}.json`);
       const lastSnapFile = path.join(forgeDir(project), 'last-snapshot.json');
-      const prev = readJson(lastSnapFile, null);
-      const changed = prev ? changedFiles(prev, snap) : [];
-      const total = snap.size;
-      const reason = flags.full ? 'forced (--full)' : !prev ? 'first verification' : hitsShared(changed, shared) ? 'a shared/config file changed' : (total > 20 && changed.length > total * 0.4) ? 'more than 40% of files changed' : null;
-      const full = !!reason;
+      const snap = takeSnapshot(project, ignore);
+      const prevScope = tier === 'slow' ? readJson(scopeFile, null) : null; // the slow tier shares the fast tier's scope for this round
       s.verified ||= { checks: {}, criteria: {} };
-      // Criteria: re-verify only those whose dependency fingerprint changed (or that never passed).
-      const dirtyC = [], carriedC = [], criteria_fp = {};
-      for (const c of applicableCriteria(s.plan, s.stage_idx)) {
-        const v = s.verified.criteria[c.id];
-        const fp = scopeFp(snap, v?.depends_on || c.scope, shared);
-        criteria_fp[c.id] = fp;
-        if (!full && v && v.pass && v.observed && v.fp === fp) carriedC.push(c.id); else dirtyC.push(c.id);
+      let changed, full, reason, total, hadPrev, dirtyC, carriedC, criteria_fp, shards;
+      if (prevScope) {
+        ({ full, full_reason: reason, total_files: total, dirty_criteria: dirtyC, carried_criteria: carriedC, criteria_fp, shards } = prevScope);
+        changed = prevScope.changed_all || prevScope.changed_files || [];
+        hadPrev = prevScope.had_prev !== false;
+      } else {
+        const prev = readJson(lastSnapFile, null);
+        hadPrev = !!prev;
+        changed = prev ? changedFiles(prev, snap) : [];
+        total = snap.size;
+        reason = flags.full ? 'forced (--full)' : !prev ? 'first verification' : hitsShared(changed, shared) ? 'a shared/config file changed' : (total > 20 && changed.length > total * 0.4) ? 'more than 40% of files changed' : null;
+        full = !!reason;
+        dirtyC = []; carriedC = []; criteria_fp = {};
+        for (const c of applicableCriteria(s.plan, s.stage_idx)) {
+          const v = s.verified.criteria[c.id];
+          const fp = scopeFp(snap, v?.depends_on || c.scope, shared);
+          criteria_fp[c.id] = fp;
+          if (!full && v && v.pass && v.observed && v.fp === fp) carriedC.push(c.id); else dirtyC.push(c.id);
+        }
+        shards = partition(dirtyC, shardCount(dirtyC.length, Number(flags.shards || process.env.FORGE_SHARDS || 3)));
       }
-      // Checks: unscoped checks always run (they are the safety net); scoped ones are carried when unchanged.
-      const results = [];
-      for (const c of applicableChecks(s.plan, s.stage_idx)) {
+      // Plan the checks: carried and impact-selected ones are decided here, the rest become jobs.
+      const active = activeChecks(s).filter((c) => tier === 'all' || (c.tier || 'fast') === tier);
+      const slots = new Array(active.length);
+      const jobs = [];
+      active.forEach((c, idx) => {
         const fp = c.scope ? scopeFp(snap, c.scope, shared) : null;
         const v = s.verified.checks[c.id];
-        if (!full && c.scope && v && v.ok && v.fp === fp) {
-          results.push({ id: c.id, cmd: c.cmd, ok: true, code: 0, ms: 0, carried: true, from_round: v.round, tail: '' });
-          out(`SKIP ${c.id} (unchanged since round ${v.round})`);
-          continue;
-        }
-        // Impact selection: after the first full run in a stage, run only tests related to the changed files.
+        const carry = (note) => { slots[idx] = { id: c.id, cmd: c.cmd, ok: true, code: 0, ms: 0, carried: true, from_round: v.round, tail: '' }; out(`SKIP ${c.id} (${note})`); };
+        if (!full && c.scope && v && v.ok && v.fp === fp) return carry(`unchanged since round ${v.round}`);
         let cmd = c.cmd, impact = false, nfiles = 0;
-        if (c.changed_cmd && !full && prev && v?.ok && v.full_stage === stageId) {
+        if (c.changed_cmd && !full && hadPrev && v?.ok && v.full_stage === stageId) {
           const m = matcher(c.changed_match?.length ? c.changed_match : ['**']);
           const files = changed.filter((f) => m(f) && fs.existsSync(path.join(project, f)));
-          if (files.length === 0) {
-            results.push({ id: c.id, cmd: c.cmd, ok: true, code: 0, ms: 0, carried: true, from_round: v.round, tail: '' });
-            out(`SKIP ${c.id} (no relevant files changed)`);
-            continue;
-          }
+          if (files.length === 0) return carry('no relevant files changed');
           cmd = c.changed_cmd.replace('{changed}', files.map((f) => JSON.stringify(f)).join(' '));
           impact = true; nfiles = files.length;
         }
-        const t0 = Date.now();
-        const r = spawnSync(expand(cmd), { shell: true, cwd: project, env: toolEnv(project), encoding: 'utf8', timeout: (c.timeout_s || 600) * 1000, maxBuffer: 64 * 1024 * 1024 });
-        const ok = r.status === 0;
-        results.push({ id: c.id, cmd, ok, impact, files: nfiles, code: r.status ?? (r.error ? -1 : 1), ms: Date.now() - t0, tail: clip(`${r.stdout || ''}${r.stderr || ''}${r.error ? '\n' + r.error.message : ''}`.slice(-2000), 2000) });
-        s.verified.checks[c.id] = { fp, round: s.round, ok, full_stage: impact ? v.full_stage : ok ? stageId : undefined };
-        out(`${ok ? 'PASS' : 'FAIL'} ${c.id}${impact ? ` [impact: ${nfiles} file(s)]` : ''} (${Date.now() - t0}ms)`);
-        if (!ok) out(clip(`${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-12).join('\n'), 1200));
+        jobs.push({ idx, c, cmd, impact, nfiles, fp, v });
+      });
+      // Run them concurrently, in waves ordered by `after` dependencies; a dependent of a failed check is skipped, not run.
+      const done = new Map(slots.filter(Boolean).map((r) => [r.id, r.ok]));
+      let pending = [...jobs];
+      while (pending.length) {
+        let ready = pending.filter((j) => (j.c.after || []).every((id) => done.has(id)));
+        if (!ready.length) ready = [...pending];
+        pending = pending.filter((j) => !ready.includes(j));
+        await pool(ready, limit, async (j) => {
+          const dep = (j.c.after || []).find((id) => done.get(id) === false);
+          let entry;
+          if (dep) {
+            entry = { id: j.c.id, cmd: j.cmd, ok: false, code: -2, ms: 0, impact: false, files: 0, tail: `skipped: it depends on check "${dep}", which failed` };
+            out(`FAIL ${j.c.id} (skipped: depends on failed "${dep}")`);
+          } else {
+            const t0 = Date.now();
+            const r = await runCheck(j.c, j.cmd);
+            const ok = r.status === 0;
+            entry = { id: j.c.id, cmd: j.cmd, ok, impact: j.impact, files: j.nfiles, code: r.status, ms: Date.now() - t0, tail: clip(r.out.slice(-2000), 2000) };
+            s.verified.checks[j.c.id] = { fp: j.fp, round: s.round, ok, full_stage: j.impact ? j.v.full_stage : ok ? stageId : undefined };
+            out(`${ok ? 'PASS' : 'FAIL'} ${j.c.id}${j.impact ? ` [impact: ${j.nfiles} file(s)]` : ''} (${entry.ms}ms)`);
+            if (!ok) out(clip(r.out.trim().split('\n').slice(-12).join('\n'), 1200));
+          }
+          slots[j.idx] = entry;
+          done.set(entry.id, entry.ok);
+        });
       }
-      const res = { round: s.round, stage: s.plan.stages[s.stage_idx].id, started_at: new Date(startedAt).toISOString(), ran_at: new Date().toISOString(), results, all_pass: results.every((r) => r.ok) && results.length > 0 };
-      writeJsonAtomic(artifactFile(project, 'checks', s.round), res);
-      const scope = { round: s.round, mode: s.mode || 'loop', full, full_reason: reason, total_files: total, changed_count: changed.length, changed_files: changed.slice(0, 60), dirty_criteria: dirtyC, carried_criteria: carriedC, criteria_fp };
-      writeJsonAtomic(path.join(forgeDir(project), `scope-${s.round}.json`), scope);
-      writeJsonAtomic(lastSnapFile, snapshotObject(snap));
-      // Fast path: nothing a verified criterion depends on changed, hard checks pass, and the previous verdict approved this same stage.
-      const lastE = s.last_eval;
+      // Merge with what an earlier tier already recorded this round.
+      const checksFile = artifactFile(project, 'checks', s.round);
+      const existing = tier === 'slow' ? readJson(checksFile, null) : null;
+      const order = new Map(s.plan.checks.map((c, i) => [c.id, i]));
+      const merged = new Map([...(existing?.results || []).map((r) => [r.id, r]), ...slots.filter(Boolean).map((r) => [r.id, r])]);
+      const results = [...merged.values()].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      const res = { round: s.round, stage: stageId, started_at: existing?.started_at || new Date(startedAt).toISOString(), ran_at: new Date().toISOString(), tier, results, all_pass: results.length > 0 && results.every((r) => r.ok) };
+      writeJsonAtomic(checksFile, res);
+      if (!prevScope) {
+        writeJsonAtomic(scopeFile, { round: s.round, mode: s.mode || 'loop', full, full_reason: reason, had_prev: hadPrev, total_files: total, changed_count: changed.length, changed_files: changed.slice(0, 60), changed_all: changed.slice(0, 2000), dirty_criteria: dirtyC, carried_criteria: carriedC, criteria_fp, shards });
+        writeJsonAtomic(lastSnapFile, snapshotObject(snap));
+      }
+      // Fast path: nothing a verified criterion depends on changed, every check ran and passed, and the last verdict approved this stage.
+      const have = new Set(results.map((r) => r.id));
+      const complete = activeChecks(s).every((c) => have.has(c.id));
       let fast = false;
-      if (res.all_pass && !full && dirtyC.length === 0 && lastE?.approved && lastE.stage === s.plan.stages[s.stage_idx].id && s.last_axes) {
+      if (res.all_pass && complete && !full && dirtyC.length === 0 && s.last_eval?.approved && s.last_eval.stage === stageId && s.last_axes) {
         const base = { axes: s.last_axes, issues: [], synthetic: true, round: s.round, written_at: new Date().toISOString() };
         writeJsonAtomic(artifactFile(project, 'verdict', s.round, 'supervisor'), { ...base, role: 'supervisor', verdict: 'approve', criteria: [], next_prompt: '', carried_all: true });
         writeJsonAtomic(artifactFile(project, 'verdict', s.round, 'critic'), { ...base, role: 'critic', verdict: 'approve', blocking_issues: [], probes: ['synthetic: nothing any verified criterion depends on has changed'], carried_all: true });
         fast = true;
       }
       saveState(project, s);
-      out(`forge: checks ${res.all_pass ? 'ALL PASS' : 'FAILING'} (round ${s.round}). Recorded.`);
-      out(`scope: ${full ? `FULL verification (${reason})` : `incremental: ${changed.length} file(s) changed`}; re-verify ${dirtyC.length} criteria${dirtyC.length ? ` [${dirtyC.join(', ')}]` : ''}, carried over ${carriedC.length}${carriedC.length ? ` [${carriedC.join(', ')}]` : ''}.`);
-      if (fast) out('FAST PATH: nothing relevant changed and checks pass. Supervisor and critic verdicts were carried over automatically; you do NOT need to delegate to them. End your turn.');
-      else out(`Supervisor/critic: assess ONLY the dirty criteria (see .forge/scope-${s.round}.json); do not redo carried ones.`);
+      out(`forge: checks ${res.all_pass ? 'ALL PASS' : 'FAILING'} (round ${s.round}${tier !== 'all' ? `, ${tier} tier` : ''}, ${Math.round((Date.now() - startedAt) / 100) / 10}s, up to ${limit} at a time). Recorded.`);
+      out(`scope: ${full ? `FULL verification (${reason})` : `incremental: ${changed.length} file(s) changed`}; re-verify ${dirtyC.length} criteria${dirtyC.length ? ` [${dirtyC.join(', ')}]` : ''}, carried over ${carriedC.length}${carriedC.length ? ` [${carriedC.join(', ')}]` : ''}${shards.length > 1 ? `; ${shards.length} supervisor shards` : ''}.`);
+      if (!res.all_pass) out('NEXT: fix the failing checks and end your turn. No review runs on a failing build.');
+      else if (fast) out('FAST PATH: nothing relevant changed and checks pass. Supervisor and critic verdicts were carried over automatically; you do NOT need to delegate to them. End your turn.');
+      else out('NEXT: end your turn. The loop will launch the reviewers (and any slow checks) together, in parallel.');
+      break;
+    }
+    case 'wait': {
+      // Reviewers use this to wait for slow checks that are still running in parallel with them.
+      const s = need();
+      if (pos[0] !== 'checks') die('usage: forge wait checks [--timeout seconds]');
+      const limitMs = (Number(flags.timeout) || 900) * 1000;
+      const t0 = Date.now();
+      for (;;) {
+        const cur = readJson(artifactFile(project, 'checks', s.round), null);
+        const have = new Set((cur?.results || []).map((r) => r.id));
+        const missing = activeChecks(s).map((c) => c.id).filter((id) => !have.has(id));
+        if (cur && !missing.length) { out(`forge: all checks recorded${cur.all_pass ? '' : ' (some failing)'}`); break; }
+        if (Date.now() - t0 > limitMs) { out(`forge: timed out waiting for checks: ${missing.join(', ')}`); process.exit(1); }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
       break;
     }
     case 'verdict': {
       const s = need();
       const role = pos[0];
-      if (!['supervisor', 'critic'].includes(role)) die('usage: forge verdict <supervisor|critic>  (JSON on stdin)');
+      if (!['supervisor', 'critic'].includes(role)) die('usage: forge verdict <supervisor|critic> [--shard i]  (JSON on stdin)');
       if (s.status !== 'running') die(`forge: no verdicts accepted (status: ${s.status})`);
+      const shard = role === 'supervisor' && flags.shard !== undefined ? Number(flags.shard) : null;
+      if (shard !== null && !Number.isInteger(shard)) die('forge: --shard must be an integer');
       let v;
       try { v = JSON.parse(await readStdin()); } catch (e) { die('forge: stdin is not valid JSON: ' + e.message); }
-      const errs = validateVerdict(s, role, v);
+      const errs = validateVerdict(s, role, v, shard);
       if (errs.length) die('forge: verdict INVALID:\n' + errs.map((e) => `  - ${e}`).join('\n'));
       v.role = role; v.round = s.round; v.written_at = new Date().toISOString();
-      writeJsonAtomic(artifactFile(project, 'verdict', s.round, role), v);
+      const sc = readJson(path.join(forgeDir(project), `scope-${s.round}.json`), { criteria_fp: {}, shards: [[]] });
+      const K = (sc.shards || [[]]).length;
+      let merged = false;
+      if (shard !== null) {
+        v.shard = shard;
+        const shardFile = (i) => path.join(forgeDir(project), `verdict-${s.round}-supervisor.shard-${i}.json`);
+        writeJsonAtomic(shardFile(shard), v);
+        const parts = [];
+        for (let i = 0; i < K; i++) { const p2 = readJson(shardFile(i), null); if (p2) parts.push(p2); }
+        if (parts.length === K) {
+          const m = mergeSupervisor(parts);
+          m.role = 'supervisor'; m.round = s.round;
+          writeJsonAtomic(artifactFile(project, 'verdict', s.round, 'supervisor'), m);
+          merged = true;
+        }
+      } else writeJsonAtomic(artifactFile(project, 'verdict', s.round, role), v);
       if (role === 'supervisor') {
-        const sc = readJson(path.join(forgeDir(project), `scope-${s.round}.json`), { criteria_fp: {} });
         s.verified ||= { checks: {}, criteria: {} };
         for (const c of v.criteria) {
           if (c.pass && c.observed) s.verified.criteria[c.id] = { fp: sc.criteria_fp?.[c.id], round: s.round, pass: true, observed: true, evidence: c.evidence, depends_on: c.depends_on || s.verified.criteria[c.id]?.depends_on, stage: s.plan.stages[s.stage_idx].id };
@@ -241,7 +328,7 @@ async function main() {
         }
         saveState(project, s);
       }
-      out(`forge: ${role} verdict recorded for round ${s.round}: ${v.verdict}`);
+      out(`forge: ${role} verdict recorded for round ${s.round}${shard !== null ? ` (shard ${shard + 1}/${K})` : ''}: ${v.verdict}${shard !== null && !merged ? ' (waiting for the other shards)' : shard !== null ? ' (all shards in; merged)' : ''}`);
       break;
     }
     case 'signoff': {
@@ -467,14 +554,17 @@ async function main() {
   }
 }
 
-function validateVerdict(s, role, v) {
+function validateVerdict(s, role, v, shard = null) {
   const errs = [];
   const plan = s.plan;
   if (!v || typeof v !== 'object') return ['verdict must be a JSON object'];
   const okVerdicts = role === 'supervisor' ? ['approve', 'continue'] : ['approve', 'reject'];
   if (!okVerdicts.includes(v.verdict)) errs.push(`verdict must be one of ${okVerdicts.join('|')}`);
-  if (!v.axes || typeof v.axes !== 'object') errs.push('axes object required');
-  else for (const a of plan.axes) { const n = v.axes[a.id]; if (typeof n !== 'number' || n < 0 || n > 10) errs.push(`axes.${a.id} must be a number 0-10`); }
+  const nonLead = role === 'supervisor' && shard !== null && shard !== 0; // only the lead shard scores the axes
+  if (!nonLead) {
+    if (!v.axes || typeof v.axes !== 'object') errs.push('axes object required');
+    else for (const a of plan.axes) { const n = v.axes[a.id]; if (typeof n !== 'number' || n < 0 || n > 10) errs.push(`axes.${a.id} must be a number 0-10`); }
+  }
   if (role === 'supervisor') {
     if (!Array.isArray(v.criteria)) errs.push('criteria array required');
     else {
@@ -500,7 +590,8 @@ function validateVerdict(s, role, v) {
     if (!sc) errs.push('run `forge checks` first: it computes which criteria need re-verification');
     else {
       const given = new Set((v.criteria || []).map((c) => c.id));
-      for (const id of sc.dirty_criteria) if (!given.has(id)) errs.push(`criterion ${id} changed (or never passed) and must be assessed`);
+      if (shard !== null && !(sc.shards || [])[shard]) errs.push(`shard ${shard} does not exist (this round has ${(sc.shards || []).length} shard(s))`);
+      for (const id of (shard !== null ? (sc.shards || [])[shard] || [] : sc.dirty_criteria)) if (!given.has(id)) errs.push(`criterion ${id} changed (or never passed) and must be assessed`);
       const snap = (v.criteria || []).some((c) => c.depends_on) ? takeSnapshot(project, [...DEFAULT_IGNORE, ...(s.plan.ignore || [])]) : null;
       for (const c of v.criteria || []) {
         if (c.depends_on === undefined) continue;
